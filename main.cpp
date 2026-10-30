@@ -453,8 +453,8 @@ string NhapMatKhauAnToan(const string& prompt, size_t maxLen = 64,
                     continue;
                 }
 
-                // 4. Phim Ctrl+C
-                if (ch == 3) {
+                // 4. Phim Ctrl+C (3) hoac Ctrl+Z (26 - EOF tren Windows)
+                if (ch == 3 || ch == 26) {
                     cout << "\n";
                     return "";
                 }
@@ -516,6 +516,7 @@ string NhapMatKhauAnToan(const string& prompt, size_t maxLen = 64,
 
         // Kiem tra chuoi rong
         if (res.empty()) {
+            if (cin.eof() || cin.fail()) return "";
             cout << "[Loi]: Du lieu khong duoc de trong! Vui long nhap lai.\n";
             continue;
         }
@@ -1784,6 +1785,7 @@ public:
 int nhapLuaChonSo() {
     int luaChon;
     if (!(cin >> luaChon)) {
+        if (cin.eof()) return 0;
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         return -1;
@@ -1800,6 +1802,7 @@ double nhapSoTien(const string& nhan) {
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             return soTien;
         }
+        if (cin.eof()) return -1;
         cout << "[Loi]: So tien nhap khong hop le! Vui long nhap so thuc duong huu han.\n";
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -1810,7 +1813,7 @@ string nhapChuoiKhongRong(const string& nhan) {
     string s;
     while (true) {
         cout << nhan;
-        getline(cin, s);
+        if (!getline(cin, s)) return "";
         if (!s.empty()) return s;
         cout << "[Loi]: Du lieu khong duoc de trong! Vui long nhap lai.\n";
     }
@@ -2188,15 +2191,42 @@ int main() {
                     // Dang nhap tai khoan khach hang
                     cout << "\n--- DANG NHAP TAI KHOAN ---\n";
                     string soTK = nhapChuoiKhongRong("Nhap so tai khoan: ");
-                    string matKhau = NhapMatKhauAnToan("Nhap mat khau: ", 32);
+                    if (soTK.empty()) {
+                        cout << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n";
+                        break;
+                    }
 
-                    string thongBaoLoi;
-                    TaiKhoan* tk = bank.DangNhap(soTK, matKhau, thongBaoLoi);
-                    if (tk) {
-                        cout << "[Dang nhap thanh cong] Xin chao, " << tk->getTenChuTaiKhoan() << "!\n";
-                        menuKhachHang(tk, bank);
-                    } else {
+                    const int MAX_LAN_THU = BankConstants::MAX_SAI_MAT_KHAU;
+                    for (int lanThu = 1; lanThu <= MAX_LAN_THU; ++lanThu) {
+                        string matKhau = NhapMatKhauAnToan("Nhap mat khau: ", 32);
+                        if (matKhau.empty()) {
+                            cout << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n";
+                            break;
+                        }
+
+                        string thongBaoLoi;
+                        TaiKhoan* tk = bank.DangNhap(soTK, matKhau, thongBaoLoi);
+                        if (tk) {
+                            cout << "[Dang nhap thanh cong] Xin chao, " << tk->getTenChuTaiKhoan() << "!\n";
+                            menuKhachHang(tk, bank);
+                            break;
+                        }
+
                         cout << "[Loi dang nhap]: " << thongBaoLoi << "\n";
+
+                        // Kiem tra neu tai khoan da bi khoa hoac bi khoa sau lan thu nay
+                        TaiKhoan* tkCheck = bank.getTaiKhoanPtr(soTK);
+                        if (tkCheck && (tkCheck->getTrangThai() == TrangThaiTaiKhoan::LOCKED ||
+                                        tkCheck->getTrangThai() == TrangThaiTaiKhoan::CLOSED)) {
+                            cout << "[Thong bao]: Ket thuc luot dang nhap. Tu dong quay ve menu chinh.\n";
+                            break;
+                        }
+
+                        if (lanThu == MAX_LAN_THU) {
+                            cout << "[Thong bao]: Ban da vuot qua so lan thu cho phep (5 lan). Tu dong quay ve menu chinh.\n";
+                        } else {
+                            cout << "[Thong bao]: Vui long nhap lai mat khau! (Con " << (MAX_LAN_THU - lanThu) << " lan thu)\n";
+                        }
                     }
                     break;
                 }
