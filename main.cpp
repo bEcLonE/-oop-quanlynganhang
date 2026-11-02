@@ -441,12 +441,9 @@ private:
     string soTaiKhoan;
     string tenChuTaiKhoan;
     double soDu;
-    string matKhauHash;
-    string pinHash;
-    string salt;
+    string matKhau;
     TrangThaiTaiKhoan trangThai;
     int soLanDangNhapSai;
-    int soLanNhapPinSai;
     double nguongCanhBaoSoDu;
     double tongRutTrongNgay;
     string ngayGiaoDichHienTai;
@@ -455,9 +452,9 @@ private:
 public:
     TaiKhoan(string soTK = "", string ten = "", double sd = 0)
         : soTaiKhoan(soTK), tenChuTaiKhoan(ten), soDu(sd),
-          matKhauHash(""), pinHash(""), salt(""),
+          matKhau(""),
           trangThai(TrangThaiTaiKhoan::ACTIVE),
-          soLanDangNhapSai(0), soLanNhapPinSai(0),
+          soLanDangNhapSai(0),
           nguongCanhBaoSoDu(BankConstants::NGUONG_CANH_BAO_MAC_DINH),
           tongRutTrongNgay(0.0), ngayGiaoDichHienTai(layNgayHienTai()) {
         if (!laSoHuuHan(sd))
@@ -473,13 +470,8 @@ public:
     string getTrangThaiString() const { return trangThaiToString(trangThai); }
     double getNguongCanhBao() const { return nguongCanhBaoSoDu; }
     const vector<GiaoDich>& getLichSuGiaoDich() const { return lichSuGiaoDich; }
-    string getSalt() const { return salt; }
-    string getMatKhauHash() const { return matKhauHash; }
-    string getPinHash() const { return pinHash; }
+    string getMatKhau() const { return matKhau; }
     int getSoLanDangNhapSai() const { return soLanDangNhapSai; }
-    int getSoLanNhapPinSai() const { return soLanNhapPinSai; }
-    double gettongruttrongngay() const { return tongRutTrongNgay; }
-    string getngaygiaodichhientai() const { return ngayGiaoDichHienTai; }
     double getTongRutTrongNgay() const { return tongRutTrongNgay; }
     string getNgayGiaoDichHienTai() const { return ngayGiaoDichHienTai; }
     double getSoDuCongKhai() const { return soDu;}
@@ -506,20 +498,12 @@ public:
         trangThai = tt;
     }
 
-    void setmatkhauhash(string mkHash) {
-        matKhauHash=mkHash; 
-    }
-    void setpinhash(string pin_h){
-        pinHash=pin_h;
-    }
-    void set_salt(string s){
-        salt=s;
+    void setMatKhau(const string& mk) {
+        matKhau = mk;
+        soLanDangNhapSai = 0;
     }
     void setsolandangnhapsai(int sldns){
         soLanDangNhapSai=sldns;
-    }
-    void setsolannhappinsai(int slnps){
-        soLanNhapPinSai=slnps;
     }
     void settongruttrongngay(double rtn){
         tongRutTrongNgay=rtn;
@@ -527,10 +511,6 @@ public:
     void setngaygiaodichhientai(string ngay){
         ngayGiaoDichHienTai=ngay;
     }
-    void setLichSuGiaoDich(const vector<GiaoDich>& lichSu) {
-        lichSuGiaoDich = lichSu;
-    }
-
     void setSoDu(double soDuMoi) {
         if (!laSoHuuHan(soDuMoi))
             throw invalid_argument("So du khong hop le!");
@@ -586,7 +566,7 @@ public:
         if (mk != xnMK) {
             throw invalid_argument("Xac nhan mat khau khong khop!");
         }
-        DatMatKhau(mk);
+        setMatKhau(mk);
     }
 
     virtual void NhapThongTin(istream& in) {
@@ -619,11 +599,6 @@ public:
 
     // ==================== QUAN LY MAT KHAU VA XAC THUC ====================
 
-    void DatMatKhau(const string& mk) {
-        matKhauHash = mk;
-        soLanDangNhapSai = 0;
-    }
-
     bool XacThucMatKhau(const string& mk, string& thongBaoLoi) {
         if (trangThai == TrangThaiTaiKhoan::CLOSED) {
             thongBaoLoi = "Tai khoan nay da bi dong!";
@@ -634,7 +609,7 @@ public:
             return false;
         }
 
-        if (mk == matKhauHash) {
+        if (mk == matKhau) {
             soLanDangNhapSai = 0;
             return true;
         }
@@ -655,7 +630,7 @@ public:
             thongBao = "Tai khoan khong o trang thai hoat dong de doi mat khau!";
             return false;
         }
-        if (mkCu != matKhauHash) {
+        if (mkCu != matKhau) {
             thongBao = "Mat khau hien tai khong dung!";
             return false;
         }
@@ -672,7 +647,7 @@ public:
             return false;
         }
 
-        matKhauHash = mkMoi;
+        matKhau = mkMoi;
         soLanDangNhapSai = 0;
         thongBao = "Doi mat khau dang nhap thanh cong!";
         return true;
@@ -681,7 +656,6 @@ public:
     void MoKhoa() {
         trangThai = TrangThaiTaiKhoan::ACTIVE;
         soLanDangNhapSai = 0;
-        soLanNhapPinSai = 0;
     }
 
     void KhoaTaiKhoan() {
@@ -748,7 +722,7 @@ public:
     }
 
     /**
-     * Chuc nang Rut tien trung tam (khong can PIN):
+     * Chuc nang rut tien trung tam:
      */
     bool ThucHienRutTien(double soTien, string& lyDo) {
         if (trangThai != TrangThaiTaiKhoan::ACTIVE) {
@@ -1012,46 +986,21 @@ class NganHang {
 private:
     vector<unique_ptr<TaiKhoan>> danhSachTaiKhoan;
     string adminUsername;
-    string adminPasswordHash;
-    string adminSalt;
+    string adminPassword;
 
 public:
     NganHang() {
         adminUsername = "admin";
-        adminPasswordHash = "admin123";
-        adminSalt = "";
+        adminPassword = "admin123";
     }
 
     // Getter 
     const vector<unique_ptr<TaiKhoan>>& getDanhSachTaiKhoan() const {
         return danhSachTaiKhoan;
     }
-    string getAdminUsername() const {
-        return adminUsername;
-    }
-    string getAdminPasswordHash() const {
-        return adminPasswordHash;
-    }
-    string getAdminSalt() const {
-        return adminSalt;
-    }
-    
-    // Setter cho adminPasswordHash
-    void setDanhSachTaiKhoan(vector<unique_ptr<TaiKhoan>> ds) {
-        danhSachTaiKhoan = move(ds);
-    }
-    void setAdminUsername(const string& username) {
-        adminUsername = username;
-    }
-    void setAdminPasswordHash(const string& passwordHash) {
-        adminPasswordHash = passwordHash;
-    }
-    void setAdminSalt(const string& salt) {
-        adminSalt = salt;
-    }
-
+    // Setter cho adminPassword
     bool XacThucAdmin(const string& user, const string& pass) const {
-        return (user == adminUsername && pass == adminPasswordHash);
+        return (user == adminUsername && pass == adminPassword);
     }
 
     int TimTaiKhoanTheoSoTK(const string& soTK) const {
@@ -1166,52 +1115,45 @@ public:
         ofstream out(tenFile);
         if (!out.is_open()) return false;
 
-        out << "# NGAN HANG DU LIEU - PHIEN BAN CHUAN HOA\n";
+        // ACCOUNT|loai|soTK|ten|soDu|thuocTinh|matKhau|trangThai|soLanSai|nguong|rutNgay|ngay
+        // TX|soTK|maGD|loaiGD|nguon|dich|soTien|phi|thoiGian|soDuTruoc|soDuSau|trangThai|noiDung
+        out << "# DU LIEU NGAN HANG\n";
         for (const auto& tk : danhSachTaiKhoan) {
-            string loai = tk->getLoaiTaiKhoan();
-            double thuocTinhRieng = 0.0;
-            if (loai == "Tiet kiem") {
-                const auto* tkTK = dynamic_cast<const TaiKhoanTietKiem*>(tk.get());
-                if (tkTK) thuocTinhRieng = tkTK->getLaiSuat();
-            } else {
-                const auto* tkTT = dynamic_cast<const TaiKhoanThanhToan*>(tk.get());
-                if (tkTT) thuocTinhRieng = tkTT->getHanMucTinDung();
+            double thuocTinh = 0.0;
+            if (const auto* tkTK = dynamic_cast<const TaiKhoanTietKiem*>(tk.get())) {
+                thuocTinh = tkTK->getLaiSuat();
+            } else if (const auto* tkTT = dynamic_cast<const TaiKhoanThanhToan*>(tk.get())) {
+                thuocTinh = tkTT->getHanMucTinDung();
             }
 
-            out << "ACCOUNT|"
-                << loai << "|"
-                << tk->getSoTaiKhoan() << "|"
-                << tk->getTenChuTaiKhoan() << "|"
-                << fixed << setprecision(2) << tk->getSoDuCongKhai() << "|"
-                << thuocTinhRieng << "|"
-                << tk->getMatKhauHash() << "|"
-                << tk->getPinHash() << "|"
-                << tk->getSalt() << "|"
-                << static_cast<int>(tk->getTrangThai()) << "|"
-                << tk->getSoLanDangNhapSai() << "|"
-                << tk->getSoLanNhapPinSai() << "|"
-                << tk->getNguongCanhBao() << "|"
-                << tk->getTongRutTrongNgay() << "|"
-                << tk->getNgayGiaoDichHienTai() << "\n";
+            out << "ACCOUNT|" << tk->getLoaiTaiKhoan() << '|'
+                << tk->getSoTaiKhoan() << '|'
+                << tk->getTenChuTaiKhoan() << '|'
+                << fixed << setprecision(2) << tk->getSoDu() << '|'
+                << thuocTinh << '|'
+                << tk->getMatKhau() << '|'
+                << static_cast<int>(tk->getTrangThai()) << '|'
+                << tk->getSoLanDangNhapSai() << '|'
+                << tk->getNguongCanhBao() << '|'
+                << tk->getTongRutTrongNgay() << '|'
+                << tk->getNgayGiaoDichHienTai() << '\n';
 
             for (const auto& gd : tk->getLichSuGiaoDich()) {
-                out << "TX|"
-                    << tk->getSoTaiKhoan() << "|"
-                    << gd.getMaGiaoDich() << "|"
-                    << static_cast<int>(gd.getLoai()) << "|"
-                    << gd.getSoTaiKhoanNguon() << "|"
-                    << gd.getSoTaiKhoanDich() << "|"
-                    << fixed << setprecision(2) << gd.getSoTien() << "|"
-                    << gd.getPhiGiaoDich() << "|"
-                    << gd.getThoiGian() << "|"
-                    << gd.getSoDuTruoc() << "|"
-                    << gd.getSoDuSau() << "|"
-                    << gd.getTrangThai() << "|"
-                    << gd.getNoiDung() << "\n";
+                out << "TX|" << tk->getSoTaiKhoan() << '|'
+                    << gd.getMaGiaoDich() << '|'
+                    << static_cast<int>(gd.getLoai()) << '|'
+                    << gd.getSoTaiKhoanNguon() << '|'
+                    << gd.getSoTaiKhoanDich() << '|'
+                    << fixed << setprecision(2) << gd.getSoTien() << '|'
+                    << gd.getPhiGiaoDich() << '|'
+                    << gd.getThoiGian() << '|'
+                    << gd.getSoDuTruoc() << '|'
+                    << gd.getSoDuSau() << '|'
+                    << gd.getTrangThai() << '|'
+                    << gd.getNoiDung() << '\n';
             }
         }
-        out.close();
-        return true;
+        return static_cast<bool>(out);
     }
 
     bool TaiDuLieu(const string& tenFile = BankConstants::FILE_DU_LIEU_MAC_DINH) {
@@ -1230,98 +1172,79 @@ public:
             if (tag == "ACCOUNT") {
                 vector<string> parts;
                 string p;
-                while (getline(ss, p, '|')) {
-                    parts.push_back(p);
-                }
+                while (getline(ss, p, '|')) parts.push_back(p);
 
-                if (parts.size() >= 10) {
+                try {
+                    if (parts.size() < 11) continue;
                     string loai = parts[0];
                     string soTK = parts[1];
                     string ten = parts[2];
                     double soDu = stod(parts[3]);
                     double thuocTinh = stod(parts[4]);
-                    string mk = parts[5];
-                    string pin = "";
-                    string s = "";
+                    string mk;
                     TrangThaiTaiKhoan tt = TrangThaiTaiKhoan::ACTIVE;
                     int saiMK = 0;
-                    int saiPIN = 0;
                     double nguong = BankConstants::NGUONG_CANH_BAO_MAC_DINH;
                     double rutNgay = 0.0;
                     string ngayGD = layNgayHienTai();
 
-                    if (parts.size() >= 15) {
+                    if (parts.size() >= 14) {
                         mk = parts[5];
-                        pin = parts[6];
-                        s = parts[7];
                         tt = static_cast<TrangThaiTaiKhoan>(stoi(parts[8]));
                         saiMK = stoi(parts[9]);
-                        saiPIN = stoi(parts[10]);
-                        nguong = stod(parts[11]);
-                        rutNgay = stod(parts[12]);
-                        ngayGD = parts[13];
-                    } else if (parts.size() >= 14) {
-                        s = parts[5];
-                        mk = parts[6];
-                        pin = parts[7];
-                        tt = static_cast<TrangThaiTaiKhoan>(stoi(parts[8]));
-                        saiMK = stoi(parts[9]);
-                        saiPIN = stoi(parts[10]);
                         nguong = stod(parts[11]);
                         rutNgay = stod(parts[12]);
                         ngayGD = parts[13];
                     } else {
+                        // Định dạng mới chỉ lưu các trường đang sử dụng.
+                        mk = parts[5];
                         tt = static_cast<TrangThaiTaiKhoan>(stoi(parts[6]));
                         saiMK = stoi(parts[7]);
                         nguong = stod(parts[8]);
                         rutNgay = stod(parts[9]);
-                        if (parts.size() > 10) ngayGD = parts[10];
+                        ngayGD = parts[10];
                     }
 
                     unique_ptr<TaiKhoan> tk;
                     if (loai == "Tiet kiem") {
                         tk = make_unique<TaiKhoanTietKiem>(soTK, ten, soDu, thuocTinh);
-                    } else {
+                    } else if (loai == "Thanh toan") {
                         tk = make_unique<TaiKhoanThanhToan>(soTK, ten, soDu, thuocTinh);
+                    } else {
+                        continue;
                     }
 
-                    tk->setmatkhauhash(mk);
-                    tk->setpinhash(pin);
-                    tk->set_salt(s);
+                    tk->setMatKhau(mk);
                     tk->setTrangThai(tt);
                     tk->setsolandangnhapsai(saiMK);
-                    tk->setsolannhappinsai(saiPIN);
                     tk->setNguongCanhBao(nguong);
                     tk->settongruttrongngay(rutNgay);
                     tk->setngaygiaodichhientai(ngayGD);
-
                     danhSachTaiKhoan.push_back(move(tk));
+                } catch (const exception&) {
+                    // Bỏ qua bản ghi tài khoản sai định dạng, không làm dừng toàn bộ chương trình.
+                    continue;
                 }
             } else if (tag == "TX") {
                 string soTK, maGD, sLoai, nguon, dich, sTien, sPhi, tg, sTruoc, sSau, tt, nd;
-                getline(ss, soTK, '|');
-                getline(ss, maGD, '|');
-                getline(ss, sLoai, '|');
-                getline(ss, nguon, '|');
-                getline(ss, dich, '|');
-                getline(ss, sTien, '|');
-                getline(ss, sPhi, '|');
-                getline(ss, tg, '|');
-                getline(ss, sTruoc, '|');
-                getline(ss, sSau, '|');
-                getline(ss, tt, '|');
-                getline(ss, nd, '|');
+                getline(ss, soTK, '|'); getline(ss, maGD, '|'); getline(ss, sLoai, '|');
+                getline(ss, nguon, '|'); getline(ss, dich, '|'); getline(ss, sTien, '|');
+                getline(ss, sPhi, '|'); getline(ss, tg, '|'); getline(ss, sTruoc, '|');
+                getline(ss, sSau, '|'); getline(ss, tt, '|'); getline(ss, nd, '|');
 
                 int idx = TimTaiKhoanTheoSoTK(soTK);
                 if (idx != -1) {
-                    GiaoDich gd(maGD, static_cast<LoaiGiaoDich>(stoi(sLoai)), nguon, dich,
-                               stod(sTien), stod(sPhi), tg, stod(sTruoc), stod(sSau), tt, nd);
-                    danhSachTaiKhoan[idx]->ThemGiaoDich(gd);
+                    try {
+                        GiaoDich gd(maGD, static_cast<LoaiGiaoDich>(stoi(sLoai)), nguon, dich,
+                                    stod(sTien), stod(sPhi), tg, stod(sTruoc), stod(sSau), tt, nd);
+                        danhSachTaiKhoan[idx]->ThemGiaoDich(gd);
+                    } catch (const exception&) {
+                        // Bỏ qua bản ghi giao dịch sai định dạng.
+                    }
                 }
             }
         }
-        in.close();
-        return true;
+        return !in.bad();
     }
 };
 
@@ -1448,7 +1371,7 @@ void menuKhachHang(TaiKhoan* tk) {
                 cout << "  So du kha dung: " << UI::green() << formatMoney(tk->getSoDuKhaDung()) << UI::reset() << "\n";
                 cout << "  Han muc rut:    Toi thieu " << formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_THIEU)
                      << " | Toi da " << formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_DA) << "/lan\n";
-                cout << "  Rut hom nay:    " << formatMoney(tk->gettongruttrongngay())
+                cout << "  Rut hom nay:    " << formatMoney(tk->getTongRutTrongNgay())
                      << " / " << formatMoney(BankConstants::HAN_MUC_RUT_NGAY_TOI_DA) << "\n\n";
 
                 double soTien = nhapSoTien("Nhap so tien can rut (VND) [Nhap 0 de huy]: ", true);
