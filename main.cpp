@@ -58,10 +58,18 @@
 #include <cstdint>
 #include <random>
 #include <cctype>
+#include <cmath>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #include <conio.h>
 #include <io.h>
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 #else
 #include <termios.h>
 #include <unistd.h>
@@ -215,6 +223,151 @@ bool laSoHuuHan(double x) {
            x >= -numeric_limits<double>::max();
 }
 
+// ============================================================================
+// MODULE GIAO DIEN CONSOLE (UI & STYLING CHO LAUDAITINHAI BANK)
+// ============================================================================
+static bool g_useColor = true;
+
+namespace UI {
+    inline string reset()   { return g_useColor ? "\033[0m" : ""; }
+    inline string bold()    { return g_useColor ? "\033[1m" : ""; }
+    inline string dim()     { return g_useColor ? "\033[2m" : ""; }
+    inline string blue()    { return g_useColor ? "\033[1;34m" : ""; }
+    inline string cyan()    { return g_useColor ? "\033[1;36m" : ""; }
+    inline string green()   { return g_useColor ? "\033[1;32m" : ""; }
+    inline string red()     { return g_useColor ? "\033[1;31m" : ""; }
+    inline string yellow()  { return g_useColor ? "\033[1;33m" : ""; }
+    inline string white()   { return g_useColor ? "\033[1;37m" : ""; }
+    inline string gray()    { return g_useColor ? "\033[90m" : ""; }
+
+    inline void initConsole() {
+#ifdef _WIN32
+        if (!_isatty(_fileno(stdout))) {
+            g_useColor = false;
+            return;
+        }
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOut != INVALID_HANDLE_VALUE) {
+            DWORD dwMode = 0;
+            if (GetConsoleMode(hOut, &dwMode)) {
+                SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            }
+        }
+        SetConsoleOutputCP(CP_UTF8);
+#else
+        if (!isatty(fileno(stdout))) {
+            g_useColor = false;
+        }
+#endif
+    }
+}
+
+// Dinh dang so tien voi dau phan cach hang nghin (VD: 1,250,000 VND hoac 802,987.50 VND)
+string formatMoney(double amount, bool alwaysShowCents = false, const string& unit = "VND") {
+    if (!laSoHuuHan(amount)) return "0 " + unit;
+    bool negative = (amount < 0);
+    double absAmount = std::abs(amount);
+    long long integerPart = static_cast<long long>(absAmount);
+    long long cents = static_cast<long long>(std::round((absAmount - integerPart) * 100.0));
+    if (cents >= 100) {
+        integerPart += 1;
+        cents -= 100;
+    }
+    string intStr = to_string(integerPart);
+    string formattedInt = "";
+    int len = static_cast<int>(intStr.length());
+    for (int i = 0; i < len; ++i) {
+        if (i > 0 && (len - i) % 3 == 0) {
+            formattedInt += ',';
+        }
+        formattedInt += intStr[i];
+    }
+    string result = (negative ? "-" : "") + formattedInt;
+    if (cents > 0 || alwaysShowCents) {
+        ostringstream oss;
+        oss << "." << setfill('0') << setw(2) << cents;
+        result += oss.str();
+    }
+    if (!unit.empty()) {
+        result += " " + unit;
+    }
+    return result;
+}
+
+// Xoa man hinh console khi chuyen giua cac menu
+void clearScreen() {
+#ifdef _WIN32
+    if (!_isatty(_fileno(stdout))) return;
+#else
+    if (!isatty(fileno(stdout))) return;
+#endif
+    if (g_useColor) {
+        cout << "\033[2J\033[H" << flush;
+    }
+}
+
+// Duong ke phan cach giao dien
+void printDivider(int width = 72, char ch = '-') {
+    cout << UI::cyan() << string(width, ch) << UI::reset() << "\n";
+}
+
+// Banner tieu de cua ngan hang BANK
+void printBanner(const string& title, const string& subtitle = "") {
+    int width = 72;
+    cout << "\n" << UI::blue() << string(width, '=') << UI::reset() << "\n";
+    string bankName = "LAUDAITINHAI BANK - HE THONG NGAN HANG SO";
+    int padBank = (width - static_cast<int>(bankName.length())) / 2;
+    if (padBank < 0) padBank = 0;
+    cout << string(padBank, ' ') << UI::bold() << UI::white() << bankName << UI::reset() << "\n";
+
+    if (!title.empty()) {
+        int padTitle = (width - static_cast<int>(title.length())) / 2;
+        if (padTitle < 0) padTitle = 0;
+        cout << string(padTitle, ' ') << UI::cyan() << title << UI::reset() << "\n";
+    }
+
+    if (!subtitle.empty()) {
+        int padSub = (width - static_cast<int>(subtitle.length())) / 2;
+        if (padSub < 0) padSub = 0;
+        cout << string(padSub, ' ') << UI::dim() << subtitle << UI::reset() << "\n";
+    }
+    cout << UI::blue() << string(width, '=') << UI::reset() << "\n";
+}
+
+// Thong bao trang thai
+void showSuccess(const string& msg) {
+    cout << UI::green() << "[THANH CONG]: " << msg << UI::reset() << "\n";
+}
+
+void showError(const string& msg) {
+    cout << UI::red() << "[LOI]: " << msg << UI::reset() << "\n";
+}
+
+void showWarning(const string& msg) {
+    cout << UI::yellow() << "[CANH BAO]: " << msg << UI::reset() << "\n";
+}
+
+void showInfo(const string& msg) {
+    cout << UI::cyan() << "[THONG BAO]: " << msg << UI::reset() << "\n";
+}
+
+// Dung man hinh de nguoi dung kip doc thong tin truoc khi xoa
+void pauseScreen() {
+#ifdef _WIN32
+    if (!_isatty(_fileno(stdin))) return;
+    cout << "\n" << UI::dim() << ">> Nhan Enter de tiep tuc..." << UI::reset() << flush;
+    while (true) {
+        int ch = _getch();
+        if (ch == 13 || ch == 10 || ch == 3 || ch == 26) break;
+    }
+#else
+    if (!isatty(fileno(stdin))) return;
+    cout << "\n>> Nhan Enter de tiep tuc..." << flush;
+    string dummy;
+    getline(cin, dummy);
+#endif
+}
+
 // Lay thoi gian hien tai dinh dang chuoi "YYYY-MM-DD HH:MM:SS"
 string layThoiGianHienTai() {
     auto now = chrono::system_clock::now();
@@ -363,12 +516,12 @@ public:
 
     // Dinh dang hien thi dong bang sao ke
     void InDongBang() const {
-        cout << left << setw(22) << maGiaoDich
+        cout << left << setw(24) << maGiaoDich
              << setw(20) << thoiGian
-             << setw(22) << loaiGDToString(loai)
-             << right << setw(15) << fixed << setprecision(2) << soTien << " VND"
-             << setw(13) << fixed << setprecision(2) << phiGiaoDich << " VND"
-             << setw(16) << fixed << setprecision(2) << soDuSau << " VND\n";
+             << setw(20) << loaiGDToString(loai)
+             << right << setw(18) << formatMoney(soTien)
+             << setw(14) << formatMoney(phiGiaoDich)
+             << setw(18) << formatMoney(soDuSau) << "\n";
     }
 
     // Chuyen thanh dong CSV de xuat file
@@ -398,10 +551,10 @@ public:
         if (!gd.soTaiKhoanDich.empty()) {
             out << "TK Nhan:       " << gd.soTaiKhoanDich << "\n";
         }
-        out << "So tien:       " << fixed << setprecision(2) << gd.soTien << " VND\n"
-            << "Phi giao dich: " << fixed << setprecision(2) << gd.phiGiaoDich << " VND\n"
-            << "So du truoc:   " << fixed << setprecision(2) << gd.soDuTruoc << " VND\n"
-            << "So du sau:     " << fixed << setprecision(2) << gd.soDuSau << " VND\n"
+        out << "So tien:       " << formatMoney(gd.soTien) << "\n"
+            << "Phi giao dich: " << formatMoney(gd.phiGiaoDich) << "\n"
+            << "So du truoc:   " << formatMoney(gd.soDuTruoc) << "\n"
+            << "So du sau:     " << formatMoney(gd.soDuSau) << "\n"
             << "Trang thai:    " << gd.trangThai << "\n";
         if (!gd.noiDung.empty()) {
             out << "Noi dung:      " << gd.noiDung << "\n";
@@ -475,42 +628,6 @@ string NhapMatKhauAnToan(const string& prompt, size_t maxLen = 64,
                     cout << '*' << flush;
                 }
             }
-        }
-#else
-        // Fallback cho POSIX / Linux / macOS
-        if (!isatty(fileno(stdin))) {
-            if (!getline(cin, res)) return "";
-            if (!res.empty() && res.back() == '\r') res.pop_back();
-        } else {
-            termios oldt, newt;
-            tcgetattr(STDIN_FILENO, &oldt);
-            newt = oldt;
-            newt.c_lflag &= ~(ECHO);
-            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-            while (true) {
-                char c = getchar();
-                if (c == '\n' || c == '\r') {
-                    cout << "\n";
-                    break;
-                }
-                if (c == 127 || c == '\b') {
-                    if (!res.empty()) {
-                        res.pop_back();
-                        cout << "\b \b" << flush;
-                    }
-                    continue;
-                }
-                if (c == 27) { // Escape sequence
-                    getchar(); getchar();
-                    continue;
-                }
-                if (chiChuSo && !isdigit(static_cast<unsigned char>(c))) continue;
-                if (res.length() < maxLen) {
-                    res.push_back(c);
-                    cout << '*' << flush;
-                }
-            }
-            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
         }
 #endif
 
@@ -591,15 +708,29 @@ protected:
         }
 
         cout << "Nhap so du ban dau (VND): ";
-        if (!(in >> soDu)) {
+        string sSoDu;
+        if (!(in >> sSoDu)) {
             in.clear();
             in.ignore(numeric_limits<streamsize>::max(), '\n');
             throw invalid_argument("So du phai la mot con so hop le!");
         }
         in.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        if (!laSoHuuHan(soDu) || soDu < 0) {
-            throw invalid_argument("So du ban dau phai >= 0 va la so thuc huu han!");
+        string cleanSoDu = "";
+        for (char c : sSoDu) {
+            if (c != ',') cleanSoDu += c;
+        }
+
+        try {
+            size_t idx = 0;
+            soDu = stod(cleanSoDu, &idx);
+            if (idx != cleanSoDu.length() || !laSoHuuHan(soDu) || soDu < 0) {
+                throw invalid_argument("So du ban dau phai >= 0 va la so thuc huu han!");
+            }
+        } catch (const invalid_argument&) {
+            throw;
+        } catch (...) {
+            throw invalid_argument("So du phai la mot con so hop le!");
         }
     }
 
@@ -645,24 +776,25 @@ protected:
 
     // Xuat thong tin tong quan (TUYET DOI KHONG XUAT MAT KHAU / PIN)
     virtual void XuatThongTinChung(ostream& out) const {
-        out << "So tai khoan:       " << soTaiKhoan << '\n';
-        out << "Chu tai khoan:      " << tenChuTaiKhoan << '\n';
-        out << "Trang thai:         " << trangThaiToString(trangThai) << '\n';
-        out << "So du thuc te:      " << fixed << setprecision(2) << soDu << " VND\n";
-        out << "So du kha dung:     " << fixed << setprecision(2) << getSoDuKhaDung() << " VND\n";
-        out << "Nguong canh bao:    " << fixed << setprecision(2) << nguongCanhBaoSoDu << " VND\n";
-        out << "Rut hom nay:        " << fixed << setprecision(2) << tongRutTrongNgay << " / "
-            << BankConstants::HAN_MUC_RUT_NGAY_TOI_DA << " VND\n";
+        out << "  Ngan hang:          LAUDAITINHAI BANK\n";
+        out << "  So tai khoan:       " << soTaiKhoan << '\n';
+        out << "  Chu tai khoan:      " << tenChuTaiKhoan << '\n';
+        out << "  Trang thai:         " << trangThaiToString(trangThai) << '\n';
+        out << "  So du thuc te:      " << formatMoney(soDu) << '\n';
+        out << "  So du kha dung:     " << formatMoney(getSoDuKhaDung()) << '\n';
+        out << "  Nguong canh bao:    " << formatMoney(nguongCanhBaoSoDu) << '\n';
+        out << "  Rut hom nay:        " << formatMoney(tongRutTrongNgay) << " / "
+            << formatMoney(BankConstants::HAN_MUC_RUT_NGAY_TOI_DA) << '\n';
     }
 
     virtual void XuatThuocTinhRieng(ostream& out) const = 0;
 
     virtual void XuatThongTin(ostream& out) const {
-        out << "---------------- THONG TIN TAI KHOAN ----------------\n";
-        out << "Loai tai khoan:     " << getLoaiTaiKhoan() << '\n';
+        out << "------------------ THONG TIN TAI KHOAN ------------------\n";
+        out << "  Loai tai khoan:     " << getLoaiTaiKhoan() << '\n';
         XuatThongTinChung(out);
         XuatThuocTinhRieng(out);
-        out << "-----------------------------------------------------\n";
+        out << "---------------------------------------------------------\n";
     }
 
     // Kiem tra va cap nhat han muc rut tien trong ngay
@@ -675,19 +807,19 @@ protected:
 
         if (soTien < BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_THIEU) {
             lyDo = "So tien rut moi lan toi thieu la " +
-                   to_string(static_cast<long long>(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_THIEU)) + " VND!";
+                   formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_THIEU) + "!";
             return false;
         }
 
         if (soTien > BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_DA) {
             lyDo = "So tien rut vuot qua han muc 1 lan (toi da " +
-                   to_string(static_cast<long long>(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_DA)) + " VND)!";
+                   formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_DA) + ")!";
             return false;
         }
 
         if (tongRutTrongNgay + soTien > BankConstants::HAN_MUC_RUT_NGAY_TOI_DA) {
             lyDo = "Vuot qua tong han muc rut trong ngay (con lai: " +
-                   to_string(static_cast<long long>(BankConstants::HAN_MUC_RUT_NGAY_TOI_DA - tongRutTrongNgay)) + " VND)!";
+                   formatMoney(BankConstants::HAN_MUC_RUT_NGAY_TOI_DA - tongRutTrongNgay) + ")!";
             return false;
         }
 
@@ -1006,9 +1138,9 @@ public:
         lyDo = "Rut tien thanh cong!";
         // Kiem tra canh bao so du
         if (sau < nguongCanhBaoSoDu) {
-            lyDo += "\n[CANH BAO]: So du con lai (" + to_string(static_cast<long long>(sau)) +
-                    " VND) da xuong duoi nguong canh bao (" +
-                    to_string(static_cast<long long>(nguongCanhBaoSoDu)) + " VND)!";
+            lyDo += "\n[CANH BAO]: So du con lai (" + formatMoney(sau) +
+                    ") da xuong duoi nguong canh bao (" +
+                    formatMoney(nguongCanhBaoSoDu) + ")!";
         }
         return true;
     }
@@ -1021,30 +1153,34 @@ public:
     // Xem toan bo lich su giao dich (sap xep thoi gian giam dan - moi nhat truoc)
     void HienThiLichSu() const {
         if (lichSuGiaoDich.empty()) {
-            cout << "Tai khoan chua co giao dich nao duoc ghi nhan.\n";
+            cout << UI::yellow() << "Tai khoan chua co giao dich nao duoc ghi nhan.\n" << UI::reset();
             return;
         }
 
-        cout << "\n============================== LICH SU GIAO DICH ==============================\n";
-        cout << left << setw(22) << "MA GIAO DICH"
+        cout << "\n" << UI::blue() << string(114, '=') << UI::reset() << "\n";
+        cout << UI::bold() << "                         LICH SU GIAO DICH TAI KHOAN: " << soTaiKhoan << UI::reset() << "\n";
+        cout << UI::blue() << string(114, '=') << UI::reset() << "\n";
+        cout << UI::cyan()
+             << left << setw(24) << "MA GIAO DICH"
              << setw(20) << "THOI GIAN"
-             << setw(22) << "LOAI GIAO DICH"
-             << right << setw(19) << "SO TIEN"
-             << setw(17) << "PHI"
-             << setw(20) << "SO DU SAU\n";
-        cout << string(100, '-') << "\n";
+             << setw(20) << "LOAI GIAO DICH"
+             << right << setw(18) << "SO TIEN"
+             << setw(14) << "PHI"
+             << setw(18) << "SO DU SAU"
+             << UI::reset() << "\n";
+        cout << string(114, '-') << "\n";
 
         // In nguoc tu cuoi ve dau de hien thi giao dich moi nhat truoc
         for (auto it = lichSuGiaoDich.rbegin(); it != lichSuGiaoDich.rend(); ++it) {
             it->InDongBang();
         }
-        cout << string(100, '=') << "\n";
+        cout << UI::blue() << string(114, '=') << UI::reset() << "\n";
     }
 
     // Xem giao dich gan nhat
     void HienThiGiaoDichGanNhat() const {
         if (lichSuGiaoDich.empty()) {
-            cout << "Chua co giao dich nao!\n";
+            cout << UI::yellow() << "Chua co giao dich nao!\n" << UI::reset();
             return;
         }
         cout << "\n=== GIAO DICH GAN NHAT ===\n";
@@ -1064,16 +1200,29 @@ public:
 
     // Loc giao dich theo loai
     void LocGiaoDichTheoLoai(LoaiGiaoDich loai) const {
-        cout << "\n=== DANH SACH GIAO DICH THEO LOAI: " << loaiGDToString(loai) << " ===\n";
+        cout << "\n" << UI::cyan() << "=== DANH SACH GIAO DICH THEO LOAI: " << loaiGDToString(loai) << " ===" << UI::reset() << "\n";
         bool co = false;
         for (auto it = lichSuGiaoDich.rbegin(); it != lichSuGiaoDich.rend(); ++it) {
             if (it->getLoai() == loai) {
+                if (!co) {
+                    cout << UI::cyan()
+                         << left << setw(24) << "MA GIAO DICH"
+                         << setw(20) << "THOI GIAN"
+                         << setw(20) << "LOAI GIAO DICH"
+                         << right << setw(18) << "SO TIEN"
+                         << setw(14) << "PHI"
+                         << setw(18) << "SO DU SAU"
+                         << UI::reset() << "\n";
+                    cout << string(114, '-') << "\n";
+                }
                 it->InDongBang();
                 co = true;
             }
         }
         if (!co) {
-            cout << "Khong tim thay giao dich phu hop.\n";
+            cout << UI::yellow() << "Khong tim thay giao dich phu hop.\n" << UI::reset();
+        } else {
+            cout << string(114, '-') << "\n";
         }
     }
 
@@ -1094,7 +1243,7 @@ public:
             f << "So tai khoan:   " << soTaiKhoan << "\n";
             f << "Chu tai khoan:  " << tenChuTaiKhoan << "\n";
             f << "Loai tai khoan: " << getLoaiTaiKhoan() << "\n";
-            f << "So du hien tai: " << fixed << setprecision(2) << soDu << " VND\n";
+            f << "So du hien tai: " << formatMoney(soDu) << "\n";
             f << "Ngay in sao ke: " << layThoiGianHienTai() << "\n";
             f << "Tong so giao dich: " << lichSuGiaoDich.size() << "\n";
             f << "--------------------------------------------------------------------------------\n";
@@ -1139,19 +1288,19 @@ protected:
         }
         in.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        if (!laSoHuuHan(laiSuat) || laiSuat < 0 || laiSuat > 100)
-            throw invalid_argument("Lai suat phai tu 0 den 100%!");
+        if (!laSoHuuHan(laiSuat) || laiSuat < 0 || laiSuat > 10)
+            throw invalid_argument("Lai suat phai tu 0 den 10%!");
     }
 
     void XuatThuocTinhRieng(ostream& out) const override {
-        out << "Lai suat tiet kiem: " << fixed << setprecision(2) << laiSuat << " %/nam\n";
-        out << "Tien lai 1 thang uoc tinh: " << fixed << setprecision(2) << TinhLaiHangThang() << " VND\n";
+        out << "  Lai suat tiet kiem: " << fixed << setprecision(2) << laiSuat << " %/nam\n";
+        out << "  Tien lai 1 thang:   " << formatMoney(TinhLaiHangThang()) << " (uoc tinh)\n";
     }
 
 public:
     TaiKhoanTietKiem(string soTK = "", string ten = "", double sd = 0, double ls = 0)
         : TaiKhoan(soTK, ten, sd), laiSuat(ls) {
-        if (!laSoHuuHan(ls) || ls < 0 || ls > 100)
+        if (!laSoHuuHan(ls) || ls < 0 || ls > 10)
             throw invalid_argument("Lai suat khong hop le!");
         if (sd < 0)
             throw invalid_argument("Tai khoan tiet kiem khong duoc co so du am!");
@@ -1160,8 +1309,8 @@ public:
     double getLaiSuat() const { return laiSuat; }
 
     void setLaiSuat(double ls) {
-        if (!laSoHuuHan(ls) || ls < 0 || ls > 100)
-            throw invalid_argument("Lai suat phai tu 0 den 100%!");
+        if (!laSoHuuHan(ls) || ls < 0 || ls > 10)
+            throw invalid_argument("Lai suat phai tu 0 den 10%!");
         laiSuat = ls;
     }
 
@@ -1231,20 +1380,35 @@ private:
 protected:
     void NhapThuocTinhRieng(istream& in) override {
         cout << "Nhap han muc tin dung (VND, >= 0): ";
-        if (!(in >> hanMucTinDung)) {
+        string sHanMuc;
+        if (!(in >> sHanMuc)) {
             in.clear();
             in.ignore(numeric_limits<streamsize>::max(), '\n');
             throw invalid_argument("Han muc tin dung phai la mot con so hop le!");
         }
         in.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        if (!laSoHuuHan(hanMucTinDung) || hanMucTinDung < 0)
-            throw invalid_argument("Han muc tin dung phai >= 0!");
+        string cleanHanMuc = "";
+        for (char c : sHanMuc) {
+            if (c != ',') cleanHanMuc += c;
+        }
+
+        try {
+            size_t idx = 0;
+            hanMucTinDung = stod(cleanHanMuc, &idx);
+            if (idx != cleanHanMuc.length() || !laSoHuuHan(hanMucTinDung) || hanMucTinDung < 0) {
+                throw invalid_argument("Han muc tin dung phai >= 0 va la so thuc huu han!");
+            }
+        } catch (const invalid_argument&) {
+            throw;
+        } catch (...) {
+            throw invalid_argument("Han muc tin dung phai la mot con so hop le!");
+        }
     }
 
     void XuatThuocTinhRieng(ostream& out) const override {
-        out << "Han muc tin dung:   " << fixed << setprecision(2) << hanMucTinDung << " VND\n";
-        out << "So tien co the chi: " << fixed << setprecision(2) << getSoDuKhaDung() << " VND\n";
+        out << "  Han muc tin dung:   " << formatMoney(hanMucTinDung) << '\n';
+        out << "  So tien co the chi: " << formatMoney(getSoDuKhaDung()) << '\n';
     }
 
 public:
@@ -1272,7 +1436,7 @@ public:
         }
         if (soTien > getSoDu() + hanMucTinDung) {
             lyDo = "Vuot qua tong so du va han muc tin dung cho phep (Kha dung: " +
-                   to_string(static_cast<long long>(getSoDuKhaDung())) + " VND)!";
+                   formatMoney(getSoDuKhaDung()) + ")!";
             return false;
         }
         return true;
@@ -1441,8 +1605,8 @@ public:
         // Kiem tra nguon co du tien (so tien + phi) theo quy tac da hinh
         if (!nguon->CoTheRut(tongTru, lyDo)) {
             lyDo = "So du khong du de thanh toan (Tien chuyen: " +
-                   to_string(static_cast<long long>(soTien)) + " VND + Phi: " +
-                   to_string(static_cast<long long>(phi)) + " VND)!";
+                   formatMoney(soTien) + " + Phi: " +
+                   formatMoney(phi) + ")!";
             return false;
         }
 
@@ -1479,9 +1643,9 @@ public:
 
         lyDo = "Chuyen tien thanh cong den TK " + soTKDich + " (" + dich->getTenChuTaiKhoan() + ")!";
         if (sauNguon < nguon->getNguongCanhBao()) {
-            lyDo += "\n[CANH BAO]: So du TK nguon (" + to_string(static_cast<long long>(sauNguon)) +
-                    " VND) da xuong duoi nguong canh bao (" +
-                    to_string(static_cast<long long>(nguon->getNguongCanhBao())) + " VND)!";
+            lyDo += "\n[CANH BAO]: So du TK nguon (" + formatMoney(sauNguon) +
+                    ") da xuong duoi nguong canh bao (" +
+                    formatMoney(nguon->getNguongCanhBao()) + ")!";
         }
         return true;
     }
@@ -1490,18 +1654,22 @@ public:
 
     void HienThiTatCaTaiKhoan() const {
         if (danhSachTaiKhoan.empty()) {
-            cout << "He thong hien chua co tai khoan nao.\n";
+            cout << UI::yellow() << "He thong hien chua co tai khoan nao.\n" << UI::reset();
             return;
         }
 
-        cout << "\n======================== DANH SACH TAI KHOAN HE THONG ========================\n";
-        cout << left << setw(5)  << "STT"
+        cout << "\n" << UI::blue() << string(96, '=') << UI::reset() << "\n";
+        cout << UI::bold() << "                     DANH SACH TAI KHOAN HE THONG (LAUDAITINHAI BANK)" << UI::reset() << "\n";
+        cout << UI::blue() << string(96, '=') << UI::reset() << "\n";
+        cout << UI::cyan()
+             << left << setw(5)  << "STT"
              << setw(16) << "SO TAI KHOAN"
              << setw(26) << "CHU TAI KHOAN"
              << setw(16) << "LOAI TK"
-             << setw(16) << "TRANG THAI"
-             << right << setw(18) << "SO DU THUC TE\n";
-        cout << string(97, '-') << "\n";
+             << setw(14) << "TRANG THAI"
+             << right << setw(19) << "SO DU THUC TE"
+             << UI::reset() << "\n";
+        cout << string(96, '-') << "\n";
 
         for (size_t i = 0; i < danhSachTaiKhoan.size(); ++i) {
             const auto& tk = danhSachTaiKhoan[i];
@@ -1509,10 +1677,10 @@ public:
                  << setw(16) << tk->getSoTaiKhoan()
                  << setw(26) << tk->getTenChuTaiKhoan()
                  << setw(16) << tk->getLoaiTaiKhoan()
-                 << setw(16) << tk->getTrangThaiString()
-                 << right << setw(14) << fixed << setprecision(2) << tk->getSoDuCongKhai() << " VND\n";
+                 << setw(14) << tk->getTrangThaiString()
+                 << right << setw(19) << formatMoney(tk->getSoDuCongKhai()) << "\n";
         }
-        cout << string(97, '=') << "\n";
+        cout << UI::blue() << string(96, '=') << UI::reset() << "\n";
     }
 
     // Tim kiem tai khoan theo so tai khoan hoac ten chu tai khoan (khong phan biet hoa thuong)
@@ -1574,15 +1742,15 @@ public:
                     if (tkTK->CongLaiTietKiem(gd)) {
                         dem++;
                         tongLai += gd.getSoTien();
-                        cout << "-> Da cong " << fixed << setprecision(2) << gd.getSoTien()
-                             << " VND vao TK " << tkTK->getSoTaiKhoan() << " (" << tkTK->getTenChuTaiKhoan() << ")\n";
+                        cout << "-> Da cong " << formatMoney(gd.getSoTien())
+                             << " vao TK " << tkTK->getSoTaiKhoan() << " (" << tkTK->getTenChuTaiKhoan() << ")\n";
                     }
                 }
             }
         }
 
         cout << "\nKet toan hoan tat: Da cong lai cho " << dem
-             << " tai khoan voi tong so tien: " << fixed << setprecision(2) << tongLai << " VND.\n";
+             << " tai khoan voi tong so tien: " << formatMoney(tongLai) << ".\n";
     }
 
     // Bao cao thong ke toan ngan hang
@@ -1612,16 +1780,18 @@ public:
             }
         }
 
-        cout << "\n==================== BAO CAO THONG KE HE THONG NGAN HANG ====================\n";
-        cout << "Tong so tai khoan:              " << danhSachTaiKhoan.size() << "\n";
-        cout << " - So tai khoan dang hoat dong: " << soTKHoatDong << "\n";
-        cout << " - So tai khoan dang bi khoa:   " << soTKBiKhoa << "\n";
-        cout << " - So tai khoan da dong:        " << soTKDaDong << "\n";
-        cout << "Tong so du tien gui khach hang: " << fixed << setprecision(2) << tongSoDu << " VND\n";
-        cout << "Tong tien da nap vao he thong:  " << fixed << setprecision(2) << tongNap << " VND\n";
-        cout << "Tong tien da rut khoi he thong: " << fixed << setprecision(2) << tongRut << " VND\n";
-        cout << "Tong luong tien giao dich chuyen:" << fixed << setprecision(2) << tongChuyen << " VND\n";
-        cout << "==============================================================================\n";
+        cout << "\n" << UI::blue() << string(72, '=') << UI::reset() << "\n";
+        cout << UI::bold() << "               BAO CAO THONG KE HE THONG LAUDAITINHAI BANK" << UI::reset() << "\n";
+        cout << UI::blue() << string(72, '=') << UI::reset() << "\n";
+        cout << "  Tong so tai khoan:              " << UI::bold() << danhSachTaiKhoan.size() << UI::reset() << "\n";
+        cout << "   - So tai khoan dang hoat dong: " << UI::green() << soTKHoatDong << UI::reset() << "\n";
+        cout << "   - So tai khoan dang bi khoa:   " << UI::red() << soTKBiKhoa << UI::reset() << "\n";
+        cout << "   - So tai khoan da dong:        " << UI::dim() << soTKDaDong << UI::reset() << "\n";
+        cout << "  Tong so du tien gui khach hang: " << UI::cyan() << formatMoney(tongSoDu) << UI::reset() << "\n";
+        cout << "  Tong tien da nap vao he thong:  " << formatMoney(tongNap) << "\n";
+        cout << "  Tong tien da rut khoi he thong: " << formatMoney(tongRut) << "\n";
+        cout << "  Tong luong tien giao dich chuyen:" << formatMoney(tongChuyen) << "\n";
+        cout << UI::blue() << string(72, '=') << UI::reset() << "\n";
     }
 
     // Tra cuu giao dich theo ma tren pham vi toan he thong
@@ -1739,7 +1909,7 @@ public:
                 int saiMK = stoi(sSaiMK);
                 int saiPIN = stoi(sSaiPIN);
                 double nguong = stod(sNguong);
-                double rutNgay = stod(sRutNgay);
+                double rutNgay = stod(sRutNgay);    
 
                 unique_ptr<TaiKhoan> tk;
                 if (loai == "Tiet kiem") {
@@ -1794,18 +1964,38 @@ int nhapLuaChonSo() {
     return luaChon;
 }
 
-double nhapSoTien(const string& nhan) {
-    double soTien;
+double nhapSoTien(const string& nhan, bool choPhep0 = false) {
     while (true) {
         cout << nhan;
-        if (cin >> soTien && laSoHuuHan(soTien) && soTien > 0) {
+        string s;
+        if (!(cin >> s)) {
+            if (cin.eof()) return -1;
+            cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            return soTien;
+            continue;
         }
-        if (cin.eof()) return -1;
-        cout << "[Loi]: So tien nhap khong hop le! Vui long nhap so thuc duong huu han.\n";
-        cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        string cleanStr = "";
+        for (char c : s) {
+            if (c != ',') cleanStr += c;
+        }
+
+        try {
+            size_t idx = 0;
+            double soTien = stod(cleanStr, &idx);
+            if (idx == cleanStr.length() && laSoHuuHan(soTien)) {
+                if (choPhep0 && soTien == 0.0) {
+                    return 0.0;
+                }
+                if (soTien > 0) {
+                    return soTien;
+                }
+            }
+        } catch (...) {}
+
+        cout << UI::red() << "[Loi]: So tien nhap khong hop le! Vui long nhap so thuc duong huu han"
+             << (choPhep0 ? " (hoac 0 de huy)" : "") << ".\n" << UI::reset();
     }
 }
 
@@ -1815,7 +2005,7 @@ string nhapChuoiKhongRong(const string& nhan) {
         cout << nhan;
         if (!getline(cin, s)) return "";
         if (!s.empty()) return s;
-        cout << "[Loi]: Du lieu khong duoc de trong! Vui long nhap lai.\n";
+        cout << UI::red() << "[Loi]: Du lieu khong duoc de trong! Vui long nhap lai.\n" << UI::reset();
     }
 }
 
@@ -1830,48 +2020,61 @@ string nhapMaPIN(const string& nhan) {
 void menuLichSuGiaoDich(TaiKhoan* tk) {
     int chon;
     do {
-        cout << "\n--- TRA CUU LICH SU GIAO DICH ---\n";
-        cout << "1. Xem toan bo lich su (moi nhat truoc)\n";
-        cout << "2. Xem giao dich gan nhat\n";
-        cout << "3. Tim kiem theo ma giao dich\n";
-        cout << "4. Loc giao dich nap tien\n";
-        cout << "5. Loc giao dich rut tien\n";
-        cout << "6. Loc giao dich chuyen tien di / den\n";
-        cout << "0. Quay lai menu tai khoan\n";
-        cout << "Lua chon: ";
+        clearScreen();
+        printBanner("TRA CUU LICH SU GIAO DICH", "So tai khoan: " + tk->getSoTaiKhoan());
+        cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Xem toan bo lich su (moi nhat truoc)\n";
+        cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Xem giao dich gan nhat\n";
+        cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Tim kiem theo ma giao dich\n";
+        cout << "  " << UI::cyan() << "[4]" << UI::reset() << " Loc giao dich nap tien\n";
+        cout << "  " << UI::cyan() << "[5]" << UI::reset() << " Loc giao dich rut tien\n";
+        cout << "  " << UI::cyan() << "[6]" << UI::reset() << " Loc giao dich chuyen tien di / den\n";
+        cout << "  " << UI::red()  << "[0]" << UI::reset() << " Quay lai menu tai khoan\n";
+        printDivider(72);
+        cout << UI::bold() << "Lua chon: " << UI::reset();
         chon = nhapLuaChonSo();
 
         switch (chon) {
             case 1:
                 tk->HienThiLichSu();
+                pauseScreen();
                 break;
             case 2:
                 tk->HienThiGiaoDichGanNhat();
+                pauseScreen();
                 break;
             case 3: {
-                string maGD = nhapChuoiKhongRong("Nhap ma giao dich can tra cuu: ");
-                GiaoDich gd;
-                if (tk->TimGiaoDichTheoMa(maGD, gd)) {
-                    cout << gd;
+                string maGD = nhapChuoiKhongRong("Nhap ma giao dich can tra cuu (hoac 0 de huy): ");
+                if (maGD == "0") {
+                    showWarning("Da huy tra cuu giao dich.");
                 } else {
-                    cout << "Khong tim thay giao dich voi ma: " << maGD << "\n";
+                    GiaoDich gd;
+                    if (tk->TimGiaoDichTheoMa(maGD, gd)) {
+                        cout << gd;
+                    } else {
+                        showError("Khong tim thay giao dich voi ma: " + maGD);
+                    }
                 }
+                pauseScreen();
                 break;
             }
             case 4:
                 tk->LocGiaoDichTheoLoai(LoaiGiaoDich::NAP_TIEN);
+                pauseScreen();
                 break;
             case 5:
                 tk->LocGiaoDichTheoLoai(LoaiGiaoDich::RUT_TIEN);
+                pauseScreen();
                 break;
             case 6:
                 tk->LocGiaoDichTheoLoai(LoaiGiaoDich::CHUYEN_TIEN_DI);
                 tk->LocGiaoDichTheoLoai(LoaiGiaoDich::CHUYEN_TIEN_DEN);
+                pauseScreen();
                 break;
             case 0:
                 break;
             default:
-                cout << "Lua chon khong hop le!\n";
+                showError("Lua chon khong hop le!");
+                pauseScreen();
         }
     } while (chon != 0);
 }
@@ -1880,71 +2083,120 @@ void menuLichSuGiaoDich(TaiKhoan* tk) {
 void menuKhachHang(TaiKhoan* tk, NganHang& bank) {
     int chon;
     do {
-        cout << "\n============================================================\n";
-        cout << "   TAI KHOAN: " << tk->getSoTaiKhoan()
-             << " | CHU TK: " << tk->getTenChuTaiKhoan()
-             << " | LOAI: " << tk->getLoaiTaiKhoan() << "\n";
-        cout << "============================================================\n";
-        cout << "1. Xem thong tin tai khoan & So du kha dung\n";
-        cout << "2. Nap tien vao tai khoan (Yeu cau PIN)\n";
-        cout << "3. Rut tien tu tai khoan (Yeu cau PIN)\n";
-        cout << "4. Chuyen tien den tai khoan khac (Yeu cau PIN)\n";
-        cout << "5. Tra cuu lich su giao dich\n";
-        cout << "6. Doi mat khau dang nhap\n";
-        cout << "7. Doi ma PIN giao dich\n";
-        cout << "8. Xuat sao ke ra file (TXT / CSV)\n";
-        cout << "9. Cai dat nguong canh bao so du toi thieu\n";
-        cout << "0. Dang xuat tai khoan\n";
-        cout << "Lua chon cua ban: ";
+        clearScreen();
+        printBanner("TRANG CHU KHACH HANG");
+        cout << "  " << UI::bold() << "SO TK: " << UI::cyan() << tk->getSoTaiKhoan() << UI::reset()
+             << " | " << UI::bold() << "CHU TK: " << UI::white() << tk->getTenChuTaiKhoan() << UI::reset()
+             << " | " << UI::bold() << "LOAI: " << UI::yellow() << tk->getLoaiTaiKhoan() << UI::reset() << "\n";
+        cout << "  " << UI::bold() << "SO DU KHA DUNG: " << UI::green() << formatMoney(tk->getSoDuKhaDung()) << UI::reset() << "\n";
+        printDivider(72);
+        cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Xem thong tin tai khoan & So du kha dung\n";
+        cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Nap tien vao tai khoan (Yeu cau PIN)\n";
+        cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Rut tien tu tai khoan (Yeu cau PIN)\n";
+        cout << "  " << UI::cyan() << "[4]" << UI::reset() << " Chuyen tien den tai khoan khac (Yeu cau PIN)\n";
+        cout << "  " << UI::cyan() << "[5]" << UI::reset() << " Tra cuu lich su giao dich\n";
+        cout << "  " << UI::cyan() << "[6]" << UI::reset() << " Doi mat khau dang nhap\n";
+        cout << "  " << UI::cyan() << "[7]" << UI::reset() << " Doi ma PIN giao dich\n";
+        cout << "  " << UI::cyan() << "[8]" << UI::reset() << " Xuat sao ke ra file (TXT / CSV)\n";
+        cout << "  " << UI::cyan() << "[9]" << UI::reset() << " Cai dat nguong canh bao so du toi thieu\n";
+        cout << "  " << UI::red()  << "[0]" << UI::reset() << " Dang xuat tai khoan\n";
+        printDivider(72);
+        cout << UI::bold() << "Lua chon cua ban: " << UI::reset();
         chon = nhapLuaChonSo();
 
         switch (chon) {
             case 1:
+                clearScreen();
+                printBanner("THONG TIN TAI KHOAN CHI TIET");
                 tk->HienThiThongTin();
+                pauseScreen();
                 break;
 
             case 2: {
-                double soTien = nhapSoTien("Nhap so tien can nap (VND): ");
-                string pin = nhapMaPIN("Nhap ma PIN giao dich: ");
+                clearScreen();
+                printBanner("NAP TIEN VAO TAI KHOAN");
+                cout << "  So du hien tai: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n\n";
+                double soTien = nhapSoTien("Nhap so tien can nap (VND) [Nhap 0 de huy]: ", true);
+                if (soTien == 0.0) {
+                    showWarning("Da huy thao tac nap tien.");
+                    pauseScreen();
+                    break;
+                }
+                string pin = nhapMaPIN("Nhap ma PIN giao dich (Enter de huy): ");
+                if (pin.empty()) {
+                    showWarning("Da huy thao tac do khong nhap PIN.");
+                    pauseScreen();
+                    break;
+                }
                 string lyDo;
                 if (tk->ThucHienNapTien(soTien, pin, lyDo)) {
-                    cout << "[Thanh cong]: " << lyDo << "\n";
-                    cout << "So du hien tai: " << fixed << setprecision(2)
-                         << tk->getSoDuCongKhai() << " VND\n";
+                    showSuccess(lyDo);
+                    cout << "So du moi: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
                 } else {
-                    cout << "[That bai]: " << lyDo << "\n";
+                    showError(lyDo);
                 }
+                pauseScreen();
                 break;
             }
 
             case 3: {
-                double soTien = nhapSoTien("Nhap so tien can rut (VND): ");
-                string pin = nhapMaPIN("Nhap ma PIN giao dich: ");
+                clearScreen();
+                printBanner("RUT TIEN MAT");
+                cout << "  So du kha dung: " << UI::green() << formatMoney(tk->getSoDuKhaDung()) << UI::reset() << "\n\n";
+                double soTien = nhapSoTien("Nhap so tien can rut (VND) [Nhap 0 de huy]: ", true);
+                if (soTien == 0.0) {
+                    showWarning("Da huy thao tac rut tien.");
+                    pauseScreen();
+                    break;
+                }
+                string pin = nhapMaPIN("Nhap ma PIN giao dich (Enter de huy): ");
+                if (pin.empty()) {
+                    showWarning("Da huy thao tac do khong nhap PIN.");
+                    pauseScreen();
+                    break;
+                }
                 string lyDo;
                 if (tk->ThucHienRutTien(soTien, pin, lyDo)) {
-                    cout << "[Thanh cong]: " << lyDo << "\n";
-                    cout << "So du con lai: " << fixed << setprecision(2)
-                         << tk->getSoDuCongKhai() << " VND\n";
+                    showSuccess(lyDo);
+                    cout << "So du con lai: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
                 } else {
-                    cout << "[That bai]: " << lyDo << "\n";
+                    showError(lyDo);
                 }
+                pauseScreen();
                 break;
             }
 
             case 4: {
-                string tkDich = nhapChuoiKhongRong("Nhap so tai khoan thu huong: ");
-                double soTien = nhapSoTien("Nhap so tien muon chuyen (VND): ");
-                cout << "Phi chuyen tien he thong: " << fixed << setprecision(2)
-                     << BankConstants::PHI_CHUYEN_TIEN_CO_DINH << " VND\n";
-                string pin = nhapMaPIN("Nhap ma PIN de xac thuc chuyen tien: ");
+                clearScreen();
+                printBanner("CHUYEN TIEN NOI BO NGAN HANG");
+                cout << "  So du kha dung: " << UI::green() << formatMoney(tk->getSoDuKhaDung()) << UI::reset() << "\n";
+                cout << "  Phi chuyen tien: " << formatMoney(BankConstants::PHI_CHUYEN_TIEN_CO_DINH) << "\n\n";
+                string tkDich = nhapChuoiKhongRong("Nhap so tai khoan thu huong (Nhap 0 de huy): ");
+                if (tkDich == "0") {
+                    showWarning("Da huy giao dich chuyen tien.");
+                    pauseScreen();
+                    break;
+                }
+                double soTien = nhapSoTien("Nhap so tien muon chuyen (VND) [Nhap 0 de huy]: ", true);
+                if (soTien == 0.0) {
+                    showWarning("Da huy giao dich chuyen tien.");
+                    pauseScreen();
+                    break;
+                }
+                string pin = nhapMaPIN("Nhap ma PIN de xac thuc chuyen tien (Enter de huy): ");
+                if (pin.empty()) {
+                    showWarning("Da huy giao dich do khong nhap PIN.");
+                    pauseScreen();
+                    break;
+                }
                 string lyDo;
                 if (bank.ChuyenTien(tk->getSoTaiKhoan(), tkDich, soTien, pin, lyDo)) {
-                    cout << "[Thanh cong]: " << lyDo << "\n";
-                    cout << "So du hien tai: " << fixed << setprecision(2)
-                         << tk->getSoDuCongKhai() << " VND\n";
+                    showSuccess(lyDo);
+                    cout << "So du hien tai: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
                 } else {
-                    cout << "[That bai]: " << lyDo << "\n";
+                    showError(lyDo);
                 }
+                pauseScreen();
                 break;
             }
 
@@ -1953,37 +2205,71 @@ void menuKhachHang(TaiKhoan* tk, NganHang& bank) {
                 break;
 
             case 6: {
-                string mkCu = NhapMatKhauAnToan("Nhap mat khau hien tai: ", 32);
+                clearScreen();
+                printBanner("DOI MAT KHAU DANG NHAP");
+                string mkCu = NhapMatKhauAnToan("Nhap mat khau hien tai (Enter de huy): ", 32);
+                if (mkCu.empty()) {
+                    showWarning("Da huy doi mat khau.");
+                    pauseScreen();
+                    break;
+                }
                 string mkMoi = NhapMatKhauAnToan("Nhap mat khau moi: ", 32);
+                if (mkMoi.empty()) {
+                    showWarning("Da huy doi mat khau.");
+                    pauseScreen();
+                    break;
+                }
                 string xnMK = NhapMatKhauAnToan("Xac nhan mat khau moi: ", 32);
                 string tb;
                 if (tk->DoiMatKhau(mkCu, mkMoi, xnMK, tb)) {
-                    cout << "[Thanh cong]: " << tb << "\n";
+                    showSuccess(tb);
                 } else {
-                    cout << "[That bai]: " << tb << "\n";
+                    showError(tb);
                 }
+                pauseScreen();
                 break;
             }
 
             case 7: {
-                string pinCu = nhapMaPIN("Nhap ma PIN hien tai: ");
+                clearScreen();
+                printBanner("DOI MA PIN GIAO DICH");
+                string pinCu = nhapMaPIN("Nhap ma PIN hien tai (Enter de huy): ");
+                if (pinCu.empty()) {
+                    showWarning("Da huy doi ma PIN.");
+                    pauseScreen();
+                    break;
+                }
                 string pinMoi = nhapMaPIN("Nhap ma PIN moi (6 chu so): ");
+                if (pinMoi.empty()) {
+                    showWarning("Da huy doi ma PIN.");
+                    pauseScreen();
+                    break;
+                }
                 string xnPin = nhapMaPIN("Xac nhan ma PIN moi: ");
                 string tb;
                 if (tk->DoiPIN(pinCu, pinMoi, xnPin, tb)) {
-                    cout << "[Thanh cong]: " << tb << "\n";
+                    showSuccess(tb);
                 } else {
-                    cout << "[That bai]: " << tb << "\n";
+                    showError(tb);
                 }
+                pauseScreen();
                 break;
             }
 
             case 8: {
-                cout << "Chon dinh dang xuat sao ke:\n";
-                cout << "1. File van ban chi tiet (TXT)\n";
-                cout << "2. File bang tinh (CSV)\n";
+                clearScreen();
+                printBanner("XUAT SAO KE RA TAP TIN");
+                cout << "  " << UI::cyan() << "[1]" << UI::reset() << " File van ban chi tiet (TXT)\n";
+                cout << "  " << UI::cyan() << "[2]" << UI::reset() << " File bang tinh (CSV)\n";
+                cout << "  " << UI::red()  << "[0]" << UI::reset() << " Huy bo\n";
+                printDivider(72);
                 cout << "Chon: ";
                 int fChon = nhapLuaChonSo();
+                if (fChon == 0) {
+                    showWarning("Da huy thao tac xuat sao ke.");
+                    pauseScreen();
+                    break;
+                }
                 string tenFileDefault = "SaoKe_" + tk->getSoTaiKhoan() + (fChon == 2 ? ".csv" : ".txt");
                 cout << "Nhap ten file (mac dinh: " << tenFileDefault << "): ";
                 string tenFile;
@@ -1991,28 +2277,36 @@ void menuKhachHang(TaiKhoan* tk, NganHang& bank) {
                 if (tenFile.empty()) tenFile = tenFileDefault;
 
                 if (tk->XuatSaoKe(tenFile, fChon == 2)) {
-                    cout << "[Thanh cong]: Da xuat sao ke tai khoan ra file \"" << tenFile << "\"!\n";
+                    showSuccess("Da xuat sao ke tai khoan ra file \"" + tenFile + "\"!");
                 } else {
-                    cout << "[Loi]: Khong the ghi file \"" << tenFile << "\"!\n";
+                    showError("Khong the ghi file \"" + tenFile + "\"!");
                 }
+                pauseScreen();
                 break;
             }
 
             case 9: {
-                cout << "Nguong canh bao so du hien tai: " << fixed << setprecision(2)
-                     << tk->getNguongCanhBao() << " VND\n";
-                double nguongMoi = nhapSoTien("Nhap nguong canh bao so du moi (VND): ");
-                tk->setNguongCanhBao(nguongMoi);
-                cout << "[Thanh cong]: Da cap nhat nguong canh bao moi!\n";
+                clearScreen();
+                printBanner("CAI DAT NGUONG CANH BAO SO DU");
+                cout << "  Nguong canh bao so du hien tai: " << formatMoney(tk->getNguongCanhBao()) << "\n";
+                double nguongMoi = nhapSoTien("Nhap nguong canh bao so du moi (VND) [Nhap 0 de huy]: ", true);
+                if (nguongMoi == 0.0) {
+                    showWarning("Da huy thay doi nguong canh bao.");
+                } else {
+                    tk->setNguongCanhBao(nguongMoi);
+                    showSuccess("Da cap nhat nguong canh bao moi: " + formatMoney(nguongMoi));
+                }
+                pauseScreen();
                 break;
             }
 
             case 0:
-                cout << "Dang dang xuat khoi tai khoan...\n";
+                showInfo("Dang dang xuat khoi tai khoan...");
                 break;
 
             default:
-                cout << "Lua chon khong hop le!\n";
+                showError("Lua chon khong hop le!");
+                pauseScreen();
         }
     } while (chon != 0);
 }
@@ -2021,167 +2315,207 @@ void menuKhachHang(TaiKhoan* tk, NganHang& bank) {
 void menuQuanTri(NganHang& bank) {
     int chon;
     do {
-        cout << "\n============================================================\n";
-        cout << "                MENU QUAN TRI VIEN (ADMIN)                  \n";
-        cout << "============================================================\n";
-        cout << "1. Hien thi danh sach tat ca tai khoan\n";
-        cout << "2. Tim kiem tai khoan (theo So TK hoac Ten chu TK)\n";
-        cout << "3. Tim tai khoan co so du lon nhat he thong\n";
-        cout << "4. Khoa / Mo khoa / Dong tai khoan khach hang\n";
-        cout << "5. Tinh va ket toan lai tiet kiem hang thang\n";
-        cout << "6. Bao cao thong ke toan ngan hang\n";
-        cout << "7. Tra cuu giao dich theo ma toan he thong\n";
-        cout << "8. Luu du lieu toan he thong ra file\n";
-        cout << "9. Tai lai du lieu he thong tu file\n";
-        cout << "0. Dang xuat quan tri vien\n";
-        cout << "Lua chon: ";
+        clearScreen();
+        printBanner("MENU QUAN TRI VIEN (ADMIN)", "Quyen han cap cao");
+        cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Hien thi danh sach tat ca tai khoan\n";
+        cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Tim kiem tai khoan (theo So TK hoac Ten chu TK)\n";
+        cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Tim tai khoan co so du lon nhat he thong\n";
+        cout << "  " << UI::cyan() << "[4]" << UI::reset() << " Khoa / Mo khoa / Dong tai khoan khach hang\n";
+        cout << "  " << UI::cyan() << "[5]" << UI::reset() << " Tinh va ket toan lai tiet kiem hang thang\n";
+        cout << "  " << UI::cyan() << "[6]" << UI::reset() << " Bao cao thong ke toan ngan hang\n";
+        cout << "  " << UI::cyan() << "[7]" << UI::reset() << " Tra cuu giao dich theo ma toan he thong\n";
+        cout << "  " << UI::cyan() << "[8]" << UI::reset() << " Luu du lieu toan he thong ra file\n";
+        cout << "  " << UI::cyan() << "[9]" << UI::reset() << " Tai lai du lieu he thong tu file\n";
+        cout << "  " << UI::red()  << "[0]" << UI::reset() << " Dang xuat quan tri vien\n";
+        printDivider(72);
+        cout << UI::bold() << "Lua chon: " << UI::reset();
         chon = nhapLuaChonSo();
 
         switch (chon) {
             case 1:
+                clearScreen();
                 bank.HienThiTatCaTaiKhoan();
+                pauseScreen();
                 break;
 
             case 2: {
-                string tuKhoa = nhapChuoiKhongRong("Nhap so TK hoac ten chu tai khoan: ");
-                bank.TimKiemTaiKhoan(tuKhoa);
+                clearScreen();
+                printBanner("TIM KIEM TAI KHOAN");
+                string tuKhoa = nhapChuoiKhongRong("Nhap so TK hoac ten chu tai khoan (0 de huy): ");
+                if (tuKhoa == "0") {
+                    showWarning("Da huy tim kiem.");
+                } else {
+                    bank.TimKiemTaiKhoan(tuKhoa);
+                }
+                pauseScreen();
                 break;
             }
 
             case 3:
+                clearScreen();
+                printBanner("TAI KHOAN CO SO DU LON NHAT");
                 bank.TimTaiKhoanSoDuLonNhat();
+                pauseScreen();
                 break;
 
             case 4: {
-                string soTK = nhapChuoiKhongRong("Nhap so tai khoan can thao tac: ");
+                clearScreen();
+                printBanner("QUAN LY TRANG THAI TAI KHOAN");
+                string soTK = nhapChuoiKhongRong("Nhap so tai khoan can thao tac (0 de huy): ");
+                if (soTK == "0") {
+                    showWarning("Da huy thao tac.");
+                    pauseScreen();
+                    break;
+                }
                 TaiKhoan* tk = bank.getTaiKhoanPtr(soTK);
                 if (!tk) {
-                    cout << "[Loi]: Khong tim thay tai khoan voi so TK: " << soTK << "\n";
+                    showError("Khong tim thay tai khoan voi so TK: " + soTK);
+                    pauseScreen();
                     break;
                 }
 
-                cout << "Trang thai hien tai: " << tk->getTrangThaiString() << "\n";
-                cout << "Chon hanh dong:\n";
-                cout << "1. Mo khoa tai khoan (ACTIVE) & reset so lan sai MK/PIN\n";
-                cout << "2. Khoa tai khoan (LOCKED)\n";
-                cout << "3. Dong tai khoan (CLOSED)\n";
-                cout << "0. Huy bo\n";
+                cout << "  Trang thai hien tai: " << UI::yellow() << tk->getTrangThaiString() << UI::reset() << "\n\n";
+                cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Mo khoa tai khoan (ACTIVE) & reset so lan sai MK/PIN\n";
+                cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Khoa tai khoan (LOCKED)\n";
+                cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Dong tai khoan (CLOSED)\n";
+                cout << "  " << UI::red()  << "[0]" << UI::reset() << " Huy bo\n";
+                printDivider(72);
                 cout << "Chon: ";
                 int act = nhapLuaChonSo();
 
                 if (act == 1) {
                     tk->MoKhoa();
-                    cout << "[Thanh cong]: Tai khoan " << soTK << " da duoc MO KHOA thanh cong!\n";
+                    showSuccess("Tai khoan " + soTK + " da duoc MO KHOA thanh cong!");
                 } else if (act == 2) {
                     tk->KhoaTaiKhoan();
-                    cout << "[Thanh cong]: Tai khoan " << soTK << " da bi KHOA!\n";
+                    showSuccess("Tai khoan " + soTK + " da bi KHOA!");
                 } else if (act == 3) {
                     tk->DongTaiKhoan();
-                    cout << "[Thanh cong]: Tai khoan " << soTK << " da bi DONG!\n";
+                    showSuccess("Tai khoan " + soTK + " da bi DONG!");
+                } else {
+                    showWarning("Da huy thao tac.");
                 }
+                pauseScreen();
                 break;
             }
 
             case 5:
+                clearScreen();
+                printBanner("TINH VA KET TOAN LAI TIET KIEM");
                 bank.TinhVaCongLaiTietKiem();
+                pauseScreen();
                 break;
 
             case 6:
+                clearScreen();
                 bank.BaoCaoThongKe();
+                pauseScreen();
                 break;
 
             case 7: {
-                string maGD = nhapChuoiKhongRong("Nhap ma giao dich: ");
-                bank.TraCuuGiaoDichToanHeThong(maGD);
+                clearScreen();
+                printBanner("TRA CUU GIAO DICH TOAN HE THONG");
+                string maGD = nhapChuoiKhongRong("Nhap ma giao dich can tra cuu (0 de huy): ");
+                if (maGD == "0") {
+                    showWarning("Da huy tra cuu.");
+                } else {
+                    bank.TraCuuGiaoDichToanHeThong(maGD);
+                }
+                pauseScreen();
                 break;
             }
 
             case 8: {
+                clearScreen();
+                printBanner("LUU DU LIEU TOAN HE THONG");
                 cout << "Nhap ten file luu du lieu (mac dinh: " << BankConstants::FILE_DU_LIEU_MAC_DINH << "): ";
                 string fn;
                 getline(cin, fn);
                 if (fn.empty()) fn = BankConstants::FILE_DU_LIEU_MAC_DINH;
                 if (bank.LuuDuLieu(fn)) {
-                    cout << "[Thanh cong]: Da luu toan bo du lieu ra file \"" << fn << "\"!\n";
+                    showSuccess("Da luu toan bo du lieu ra file \"" + fn + "\"!");
                 } else {
-                    cout << "[Loi]: Khong the luu du lieu vao file \"" << fn << "\"!\n";
+                    showError("Khong the luu du lieu vao file \"" + fn + "\"!");
                 }
+                pauseScreen();
                 break;
             }
 
             case 9: {
+                clearScreen();
+                printBanner("NAP LAI DU LIEU HE THONG");
                 cout << "Nhap ten file nap du lieu (mac dinh: " << BankConstants::FILE_DU_LIEU_MAC_DINH << "): ";
                 string fn;
                 getline(cin, fn);
                 if (fn.empty()) fn = BankConstants::FILE_DU_LIEU_MAC_DINH;
                 if (bank.TaiDuLieu(fn)) {
-                    cout << "[Thanh cong]: Da tai du lieu tu file \"" << fn << "\" thanh cong!\n";
+                    showSuccess("Da tai du lieu tu file \"" + fn + "\" thanh cong!");
                 } else {
-                    cout << "[Loi]: Khong the doc du lieu tu file \"" << fn << "\"!\n";
+                    showError("Khong the doc du lieu tu file \"" + fn + "\"!");
                 }
+                pauseScreen();
                 break;
             }
 
             case 0:
-                cout << "Dang thoat quyen quan tri vien...\n";
+                showInfo("Dang thoat quyen quan tri vien...");
                 break;
 
             default:
-                cout << "Lua chon khong hop le!\n";
+                showError("Lua chon khong hop le!");
+                pauseScreen();
         }
     } while (chon != 0);
 }
 
 // Menu chinh cua he thong
 void hienThiMenuChinh() {
-    cout << "\n============================================================\n";
-    cout << "           HE THONG QUAN LY TAI KHOAN NGAN HANG             \n";
-    cout << "============================================================\n";
-    cout << "1. Dang nhap tai khoan khach hang\n";
-    cout << "2. Dang ky mo tai khoan tiet kiem\n";
-    cout << "3. Dang ky mo tai khoan thanh toan\n";
-    cout << "4. Dang nhap quan tri vien (Admin)\n";
-    cout << "5. Huong dan su dung & Gioi han bao mat demo\n";
-    cout << "0. Thoat chuong trinh\n";
-    cout << "Lua chon cua ban: ";
+    printBanner("HE THONG NGAN HANG SO - MENU CHINH", "LAUDAITINHAI BANK - Uy tin & An toan");
+    cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Dang nhap tai khoan khach hang\n";
+    cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Dang ky mo tai khoan tiet kiem\n";
+    cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Dang ky mo tai khoan thanh toan\n";
+    cout << "  " << UI::cyan() << "[4]" << UI::reset() << " Dang nhap quan tri vien (Admin)\n";
+    cout << "  " << UI::cyan() << "[5]" << UI::reset() << " Huong dan su dung & Gioi han bao mat demo\n";
+    cout << "  " << UI::red()  << "[0]" << UI::reset() << " Thoat chuong trinh\n";
+    printDivider(72);
+    cout << UI::bold() << "Lua chon cua ban: " << UI::reset();
 }
 
 void hienThiThongTinBaoMatDemo() {
-    cout << "\n================== CHINH SACH BAO MAT & HUONG DAN ==================\n";
-    cout << "1. QUY TAC MAT KHAU & PIN:\n";
-    cout << "   - Mat khau va PIN duoc quan ly doc lap, khong bao gio luu o dang ro.\n";
-    cout << "   - Thuat toan bam: SHA-256 kem Per-Account Salt ngau nhien cho tung TK.\n";
-    cout << "   - Ma PIN bat buoc gom dung 6 chu so (giu nguyen so 0 o dau, vi du: 012345).\n";
-    cout << "2. QUY TAC KHOA TAI KHOAN:\n";
-    cout << "   - Nhap sai mat khau 5 lan -> Tai khoan bi KHOA dang nhap.\n";
-    cout << "   - Nhap sai ma PIN 3 lan   -> Tai khoan bi KHOA giao dich.\n";
-    cout << "   - Chi co Quan tri vien (Admin) moi co tham quyen mo khoa tai khoan.\n";
-    cout << "3. TAI KHOAN ADMIN DEMO:\n";
-    cout << "   - Tai khoan: admin\n";
-    cout << "   - Mat khau : admin123\n";
-    cout << "4. GIOI HAN BAO MAT MO HINH DEMO:\n";
-    cout << "   - Chuong trinh bam mat khau/PIN bang SHA-256 hop chuan trong C++.\n";
-    cout << "   - Tuy nhien, trong moi truong console C++, chua co co che vung nho an toan\n";
-    cout << "     (nhu Secure Enclave hoac OS DPAPI) de xoa sach bo nho RAM khi thoat.\n";
-    cout << "   - File luu tru du lieu ghi nhan cac ma bam SHA-256 salt, tuy nhien can duoc\n";
-    cout << "     bao ve quyen doc tren he thong file cua he dieu hanh.\n";
-    cout << "====================================================================\n";
+    printBanner("CHINH SACH BAO MAT & HUONG DAN SU DUNG", "LAUDAITINHAI BANK Security Standards");
+    cout << "  " << UI::bold() << "1. QUY TAC MAT KHAU & PIN:" << UI::reset() << "\n";
+    cout << "     - Mat khau va PIN duoc quan ly doc lap, khong bao gio luu o dang ro.\n";
+    cout << "     - Thuat toan bam: SHA-256 kem Per-Account Salt ngau nhien cho tung TK.\n";
+    cout << "     - Ma PIN bat buoc gom dung 6 chu so (giu nguyen so 0 o dau, vi du: 012345).\n\n";
+    cout << "  " << UI::bold() << "2. QUY TAC KHOA TAI KHOAN:" << UI::reset() << "\n";
+    cout << "     - Nhap sai mat khau 5 lan -> Tai khoan bi KHOA dang nhap.\n";
+    cout << "     - Nhap sai ma PIN 3 lan   -> Tai khoan bi KHOA giao dich.\n";
+    cout << "     - Chi co Quan tri vien (Admin) moi co tham quyen mo khoa tai khoan.\n\n";
+    cout << "  " << UI::bold() << "3. TAI KHOAN ADMIN DEMO:" << UI::reset() << "\n";
+    cout << "     - Tai khoan: " << UI::cyan() << "admin" << UI::reset() << "\n";
+    cout << "     - Mat khau : " << UI::cyan() << "admin123" << UI::reset() << "\n\n";
+    cout << "  " << UI::bold() << "4. GIOI HAN BAO MAT MO HINH DEMO:" << UI::reset() << "\n";
+    cout << "     - Chuong trinh bam mat khau/PIN bang SHA-256 hop chuan trong C++.\n";
+    cout << "     - File luu tru du lieu ghi nhan cac ma bam SHA-256 salt an toan.\n";
+    printDivider(72);
 }
 
 // ============================================================================
 // HAM MAIN (DIEM KHOI DAU CHUONG TRINH)
 // ============================================================================
 int main() {
+    UI::initConsole();
     NganHang bank;
 
     // Tu dong tai du lieu tu file neu ton tai
     if (bank.TaiDuLieu(BankConstants::FILE_DU_LIEU_MAC_DINH)) {
-        cout << "[He thong]: Da tu dong nap du lieu tu \""
-             << BankConstants::FILE_DU_LIEU_MAC_DINH << "\".\n";
+        cout << UI::cyan() << "[He thong]: Da tu dong nap du lieu tu \""
+             << BankConstants::FILE_DU_LIEU_MAC_DINH << "\".\n" << UI::reset();
     }
 
     int luaChon;
     do {
+        clearScreen();
         hienThiMenuChinh();
         luaChon = nhapLuaChonSo();
 
@@ -2189,10 +2523,12 @@ int main() {
             switch (luaChon) {
                 case 1: {
                     // Dang nhap tai khoan khach hang
-                    cout << "\n--- DANG NHAP TAI KHOAN ---\n";
-                    string soTK = nhapChuoiKhongRong("Nhap so tai khoan: ");
-                    if (soTK.empty()) {
-                        cout << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n";
+                    clearScreen();
+                    printBanner("DANG NHAP TAI KHOAN KHACH HANG");
+                    string soTK = nhapChuoiKhongRong("Nhap so tai khoan (hoac 0 de quay lai): ");
+                    if (soTK == "0" || soTK.empty()) {
+                        cout << UI::yellow() << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n" << UI::reset();
+                        pauseScreen();
                         break;
                     }
 
@@ -2200,32 +2536,36 @@ int main() {
                     for (int lanThu = 1; lanThu <= MAX_LAN_THU; ++lanThu) {
                         string matKhau = NhapMatKhauAnToan("Nhap mat khau: ", 32);
                         if (matKhau.empty()) {
-                            cout << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n";
+                            cout << UI::yellow() << "[Thong bao]: Huy luot dang nhap do loi dau vao hoac ket thuc du lieu.\n" << UI::reset();
+                            pauseScreen();
                             break;
                         }
 
                         string thongBaoLoi;
                         TaiKhoan* tk = bank.DangNhap(soTK, matKhau, thongBaoLoi);
                         if (tk) {
-                            cout << "[Dang nhap thanh cong] Xin chao, " << tk->getTenChuTaiKhoan() << "!\n";
+                            cout << UI::green() << "[Dang nhap thanh cong] Xin chao, " << tk->getTenChuTaiKhoan() << "!\n" << UI::reset();
+                            pauseScreen();
                             menuKhachHang(tk, bank);
                             break;
                         }
 
-                        cout << "[Loi dang nhap]: " << thongBaoLoi << "\n";
+                        cout << UI::red() << "[Loi dang nhap]: " << thongBaoLoi << "\n" << UI::reset();
 
                         // Kiem tra neu tai khoan da bi khoa hoac bi khoa sau lan thu nay
                         TaiKhoan* tkCheck = bank.getTaiKhoanPtr(soTK);
                         if (tkCheck && (tkCheck->getTrangThai() == TrangThaiTaiKhoan::LOCKED ||
                                         tkCheck->getTrangThai() == TrangThaiTaiKhoan::CLOSED)) {
-                            cout << "[Thong bao]: Ket thuc luot dang nhap. Tu dong quay ve menu chinh.\n";
+                            cout << UI::yellow() << "[Thong bao]: Ket thuc luot dang nhap. Tu dong quay ve menu chinh.\n" << UI::reset();
+                            pauseScreen();
                             break;
                         }
 
                         if (lanThu == MAX_LAN_THU) {
-                            cout << "[Thong bao]: Ban da vuot qua so lan thu cho phep (5 lan). Tu dong quay ve menu chinh.\n";
+                            cout << UI::yellow() << "[Thong bao]: Ban da vuot qua so lan thu cho phep (5 lan). Tu dong quay ve menu chinh.\n" << UI::reset();
+                            pauseScreen();
                         } else {
-                            cout << "[Thong bao]: Vui long nhap lai mat khau! (Con " << (MAX_LAN_THU - lanThu) << " lan thu)\n";
+                            cout << UI::cyan() << "[Thong bao]: Vui long nhap lai mat khau! (Con " << (MAX_LAN_THU - lanThu) << " lan thu)\n" << UI::reset();
                         }
                     }
                     break;
@@ -2234,8 +2574,8 @@ int main() {
                 case 2:
                 case 3: {
                     // Mo tai khoan moi
-                    cout << "\n--- DANG KY MO TAI KHOAN "
-                         << (luaChon == 2 ? "TIET KIEM" : "THANH TOAN") << " ---\n";
+                    clearScreen();
+                    printBanner(luaChon == 2 ? "DANG KY MO TAI KHOAN TIET KIEM" : "DANG KY MO TAI KHOAN THANH TOAN");
 
                     unique_ptr<TaiKhoan> tk;
                     if (luaChon == 2) {
@@ -2249,47 +2589,61 @@ int main() {
 
                     string lyDo;
                     if (bank.ThemTaiKhoan(move(tk), lyDo)) {
-                        cout << "[Thanh cong]: " << lyDo << "\n";
+                        showSuccess(lyDo);
                     } else {
-                        cout << "[Loi]: " << lyDo << "\n";
+                        showError(lyDo);
                     }
+                    pauseScreen();
                     break;
                 }
 
                 case 4: {
                     // Dang nhap Admin
-                    cout << "\n--- DANG NHAP QUAN TRI VIEN (ADMIN) ---\n";
-                    string user = nhapChuoiKhongRong("Ten dang nhap quan tri: ");
+                    clearScreen();
+                    printBanner("DANG NHAP QUAN TRI VIEN (ADMIN)");
+                    string user = nhapChuoiKhongRong("Ten dang nhap quan tri (hoac 0 de huy): ");
+                    if (user == "0") {
+                        showWarning("Da huy dang nhap quan tri.");
+                        pauseScreen();
+                        break;
+                    }
                     string pass = NhapMatKhauAnToan("Mat khau quan tri: ", 32);
 
                     if (bank.XacThucAdmin(user, pass)) {
-                        cout << "[Thanh cong]: Dang nhap quyen Quan tri vien thanh cong!\n";
+                        showSuccess("Dang nhap quyen Quan tri vien thanh cong!");
+                        pauseScreen();
                         menuQuanTri(bank);
                     } else {
-                        cout << "[Loi]: Thong tin quan tri vien khong chinh xac!\n";
+                        showError("Thong tin quan tri vien khong chinh xac!");
+                        pauseScreen();
                     }
                     break;
                 }
 
                 case 5:
+                    clearScreen();
                     hienThiThongTinBaoMatDemo();
+                    pauseScreen();
                     break;
 
                 case 0: {
+                    clearScreen();
+                    printBanner("KET THUC PHIEN LAM VIEC", "LAUDAITINHAI BANK");
                     cout << "Tu dong sao luu du lieu he thong truoc khi thoat...\n";
                     if (bank.LuuDuLieu(BankConstants::FILE_DU_LIEU_MAC_DINH)) {
-                        cout << "Da luu du lieu an toan vao \""
-                             << BankConstants::FILE_DU_LIEU_MAC_DINH << "\".\n";
+                        showSuccess("Da luu du lieu an toan vao \"" + BankConstants::FILE_DU_LIEU_MAC_DINH + "\".");
                     }
-                    cout << "Cam on ban da su dung chuong trinh Quan ly Ngan hang!\n";
+                    cout << UI::bold() << UI::green() << "Cam on ban da su dung chuong trinh Quan ly Ngan hang!\n" << UI::reset();
                     break;
                 }
 
                 default:
-                    cout << "Lua chon khong hop le! Vui long chon cac chuc nang tu 0 den 5.\n";
+                    showError("Lua chon khong hop le! Vui long chon cac chuc nang tu 0 den 5.");
+                    pauseScreen();
             }
         } catch (const exception& e) {
-            cout << "\n[Ngoai le bat duoc]: " << e.what() << "\n";
+            showError(string("Ngoai le bat duoc: ") + e.what());
+            pauseScreen();
         }
 
     } while (luaChon != 0);
