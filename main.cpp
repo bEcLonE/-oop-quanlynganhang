@@ -5,7 +5,7 @@
  * 
  * CAC NGUYEN TAC THIET KE OOP & TINH NANG:
  * 1. Dong goi (Encapsulation):
- *    - Day du cac phuong thuc Getter / Setter cho cac lop NganHang, TaiKhoan, GiaoDich.
+ *    - Cac phuong thuc Getter / Setter cho NganHang va TaiKhoan.
  * 2. Ke thua (Inheritance):
  *    - Lop co so truu tuong TaiKhoan.
  *    - Lop dan xuat TaiKhoanTietKiem (bo sung lai suat %/nam).
@@ -17,7 +17,7 @@
  *      + TaiKhoanThanhToan: Cho phep rut am trong pham vi han muc tin dung (so du am toi da -hanMucTinDung).
  *    - Kiem tra han muc rut tien theo quy dinh: toi thieu 50.000 VND/lan, toi da 20.000.000 VND/lan, toi da 50.000.000 VND/ngay.
  * 4. Nap chong toan tu (Operator Overloading):
- *    - operator>> va operator<< cho TaiKhoan va GiaoDich.
+ *    - operator>> va operator<< cho TaiKhoan.
  * 5. Quan ly bo nho an toan:
  *    - Su dung std::unique_ptr<TaiKhoan> va std::vector de tranh ro ri bo nho.
  * ============================================================================
@@ -216,20 +216,6 @@ void pauseScreen() {
 #endif
 }
 
-string layThoiGianHienTai() {
-    auto now = chrono::system_clock::now();
-    time_t t = chrono::system_clock::to_time_t(now);
-    tm tmBuf;
-#if defined(_WIN32) || defined(_WIN64)
-    localtime_s(&tmBuf, &t);
-#else
-    localtime_r(&t, &tmBuf);
-#endif
-    char buf[64];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tmBuf);
-    return string(buf);
-}
-
 string layNgayHienTai() {
     auto now = chrono::system_clock::now();
     time_t t = chrono::system_clock::to_time_t(now);
@@ -244,110 +230,14 @@ string layNgayHienTai() {
     return string(buf);
 }
 
-string taoMaGiaoDich() {
-    static int counter = 1000;
-    auto now = chrono::system_clock::now();
-    time_t t = chrono::system_clock::to_time_t(now);
-    tm tmBuf;
-#if defined(_WIN32) || defined(_WIN64)
-    localtime_s(&tmBuf, &t);
-#else
-    localtime_r(&t, &tmBuf);
-#endif
-    char buf[64];
-    strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", &tmBuf);
-    counter = (counter + 1) % 9000 + 1000;
-    return "GD" + string(buf) + "_" + to_string(counter);
-}
-
 // ============================================================================
-// TRANG THAI TAI KHOAN VA LOAI GIAO DICH (DUNG STRING)
+// TRANG THAI TAI KHOAN (DUNG STRING)
 // ============================================================================
 namespace TrangThaiTaiKhoan {
     const string ACTIVE = "Hoat dong";
     const string LOCKED = "Bi khoa";
     const string CLOSED = "Da dong";
 }
-
-namespace LoaiGiaoDich {
-    const string NAP_TIEN = "Nap tien";
-    const string RUT_TIEN = "Rut tien";
-}
-
-// ============================================================================
-// LOP GIAO DICH (TRANSACTION)
-// ============================================================================
-class GiaoDich {
-private:
-    string maGiaoDich;
-    string loai;
-    double soTien;
-    double phiGiaoDich;
-    string thoiGian;
-    double soDuTruoc;
-    double soDuSau;
-    string trangThai;
-    string noiDung;
-
-public:
-    GiaoDich(string maGD = "",
-             string l = LoaiGiaoDich::NAP_TIEN,
-             double tien = 0.0,
-             double phi = 0.0,
-             string tg = "",
-             double truoc = 0.0,
-             double sau = 0.0,
-             string tt = "THANH_CONG",
-             string nd = "")
-        : maGiaoDich(maGD), loai(l), soTien(tien), phiGiaoDich(phi), thoiGian(tg), soDuTruoc(truoc),
-          soDuSau(sau), trangThai(tt), noiDung(nd) {
-        if (thoiGian.empty()) {
-            thoiGian = layThoiGianHienTai();
-        }
-        if (maGiaoDich.empty()) {
-            maGiaoDich = taoMaGiaoDich();
-        }
-    }
-
-    // Getter
-    string getMaGiaoDich() const { return maGiaoDich; }
-    string getLoai() const { return loai; }
-    double getSoTien() const { return soTien; }
-    double getPhiGiaoDich() const { return phiGiaoDich; }
-    string getThoiGian() const { return thoiGian; }
-    double getSoDuTruoc() const { return soDuTruoc; }
-    double getSoDuSau() const { return soDuSau; }
-    string getTrangThai() const { return trangThai; }
-    string getNoiDung() const { return noiDung; }
-
-    // Setter
-    void setMaGiaoDich(string maGD) { maGiaoDich=maGD; }
-    void setLoai(string l) { loai=l; }
-    void setSoTien(double tien) { soTien=tien; }
-    void setPhiGiaoDich(double phi) { phiGiaoDich=phi; }
-    void setThoiGian(string tg) { thoiGian=tg; }
-    void setSoDuTruoc(double truoc) { soDuTruoc=truoc; }
-    void setSoDuSau(double sau)  { soDuSau=sau; }
-    void setTrangThai(string tt) { trangThai=tt; }
-    void setNoiDung(string nd) { noiDung=nd; }
-
-    friend ostream& operator<<(ostream& out, const GiaoDich& gd) {
-        out << "------------------------------------------------------------\n"
-            << "Ma GD:         " << gd.maGiaoDich << "\n"
-            << "Thoi gian:     " << gd.thoiGian << "\n"
-            << "Loai GD:       " << gd.loai << "\n"
-            << "So tien:       " << formatMoney(gd.soTien) << "\n"
-            << "Phi giao dich: " << formatMoney(gd.phiGiaoDich) << "\n"
-            << "So du truoc:   " << formatMoney(gd.soDuTruoc) << "\n"
-            << "So du sau:     " << formatMoney(gd.soDuSau) << "\n"
-            << "Trang thai:    " << gd.trangThai << "\n";
-        if (!gd.noiDung.empty()) {
-            out << "Noi dung:      " << gd.noiDung << "\n";
-        }
-        out << "------------------------------------------------------------\n";
-        return out;
-    }
-};
 
 // ============================================================================
 // HAM NHAP MAT KHAU AN TOAN (AN KY TU BANG '*')
@@ -417,7 +307,6 @@ private:
     double nguongCanhBaoSoDu;
     double tongRutTrongNgay;
     string ngayGiaoDichHienTai;
-    vector<GiaoDich> lichSuGiaoDich;
 
 public:
     TaiKhoan(string soTK = "", string ten = "", double sd = 0)
@@ -439,7 +328,6 @@ public:
     string getTrangThai() const { return trangThai; }
     string getTrangThaiString() const { return trangThai; }
     double getNguongCanhBao() const { return nguongCanhBaoSoDu; }
-    const vector<GiaoDich>& getLichSuGiaoDich() const { return lichSuGiaoDich; }
     string getMatKhau() const { return matKhau; }
     int getSoLanDangNhapSai() const { return soLanDangNhapSai; }
     double getTongRutTrongNgay() const { return tongRutTrongNgay; }
@@ -710,17 +598,12 @@ public:
             return false;
         }
 
-        double truoc = soDu;
         if (!RutTien(soTien)) {
             lyDo = "Giao dich rut tien that bai do loi he thong!";
             return false;
         }
-        double sau = soDu;
         GhiNhanRutTrongNgay(soTien);
-
-        GiaoDich gd(taoMaGiaoDich(), LoaiGiaoDich::RUT_TIEN,
-                   soTien, 0.0, layThoiGianHienTai(), truoc, sau, "THANH_CONG", "Rut tien mat");
-        lichSuGiaoDich.push_back(gd);
+        double sau = soDu;
 
         lyDo = "Rut tien thanh cong!";
         if (sau < nguongCanhBaoSoDu) {
@@ -745,23 +628,13 @@ public:
             return false;
         }
 
-        double truoc = soDu;
         if (!NapTien(soTien)) {
             lyDo = "Loi tran so du he thong!";
             return false;
         }
-        double sau = soDu;
-
-        GiaoDich gd(taoMaGiaoDich(), LoaiGiaoDich::NAP_TIEN,
-                   soTien, 0.0, layThoiGianHienTai(), truoc, sau, "THANH_CONG", "Nap tien vao tai khoan");
-        lichSuGiaoDich.push_back(gd);
 
         lyDo = "Nap tien thanh cong!";
         return true;
-    }
-
-    void ThemGiaoDich(const GiaoDich& gd) {
-        lichSuGiaoDich.push_back(gd);
     }
 
     friend class NganHang;
@@ -1086,7 +959,6 @@ public:
         if (!out.is_open()) return false;
 
         // ACCOUNT|loai|soTK|ten|soDu|thuocTinh|matKhau|trangThai(string)|soLanSai|nguong|rutNgay|ngay
-        // TX|soTK|maGD|loaiGD(string)|soTien|phi|thoiGian|soDuTruoc|soDuSau|trangThai|noiDung
         out << "# DU LIEU NGAN HANG\n";
         for (const auto& tk : danhSachTaiKhoan) {
             double thuocTinh = 0.0;
@@ -1108,18 +980,6 @@ public:
                 << tk->getTongRutTrongNgay() << '|'
                 << tk->getNgayGiaoDichHienTai() << '\n';
 
-            for (const auto& gd : tk->getLichSuGiaoDich()) {
-                out << "TX|" << tk->getSoTaiKhoan() << '|'
-                    << gd.getMaGiaoDich() << '|'
-                    << gd.getLoai() << '|'
-                    << fixed << setprecision(2) << gd.getSoTien() << '|'
-                    << gd.getPhiGiaoDich() << '|'
-                    << gd.getThoiGian() << '|'
-                    << gd.getSoDuTruoc() << '|'
-                    << gd.getSoDuSau() << '|'
-                    << gd.getTrangThai() << '|'
-                    << gd.getNoiDung() << '\n';
-            }
         }
         return static_cast<bool>(out);
     }
@@ -1198,34 +1058,6 @@ public:
                 } catch (const exception&) {
                     // Bỏ qua bản ghi tài khoản sai định dạng, không làm dừng toàn bộ chương trình.
                     continue;
-                }
-            } else if (tag == "TX") {
-                vector<string> parts;
-                string p;
-                while (getline(ss, p, '|')) parts.push_back(p);
-
-                int idx = parts.empty() ? -1 : TimTaiKhoanTheoSoTK(parts[0]);
-                if (idx != -1) {
-                    try {
-                        // Ho tro ca dinh dang cu (co nguon/dich) va dinh dang moi.
-                        bool dinhDangCu = parts.size() >= 12;
-                        size_t offset = dinhDangCu ? 2 : 0;
-                        string loaiGD = parts.at(2);
-                        if (loaiGD == "0") loaiGD = LoaiGiaoDich::NAP_TIEN;
-                        else if (loaiGD == "1") loaiGD = LoaiGiaoDich::RUT_TIEN;
-                        GiaoDich gd(parts.at(1),
-                                    loaiGD,
-                                    stod(parts.at(3 + offset)),
-                                    stod(parts.at(4 + offset)),
-                                    parts.at(5 + offset),
-                                    stod(parts.at(6 + offset)),
-                                    stod(parts.at(7 + offset)),
-                                    parts.at(8 + offset),
-                                    parts.at(9 + offset));
-                        danhSachTaiKhoan[idx]->ThemGiaoDich(gd);
-                    } catch (const exception&) {
-                        // Bo qua ban ghi giao dich sai dinh dang.
-                    }
                 }
             }
         }
