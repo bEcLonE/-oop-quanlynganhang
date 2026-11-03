@@ -261,34 +261,17 @@ string taoMaGiaoDich() {
 }
 
 // ============================================================================
-// ENUM TRANG THAI TAI KHOAN VA LOAI GIAO DICH
+// TRANG THAI TAI KHOAN VA LOAI GIAO DICH (DUNG STRING)
 // ============================================================================
-enum class TrangThaiTaiKhoan {
-    ACTIVE,
-    LOCKED,
-    CLOSED
-};
-
-inline string trangThaiToString(TrangThaiTaiKhoan tt) {
-    switch (tt) {
-        case TrangThaiTaiKhoan::ACTIVE: return "Hoat dong";
-        case TrangThaiTaiKhoan::LOCKED: return "Bi khoa";
-        case TrangThaiTaiKhoan::CLOSED: return "Da dong";
-        default: return "Khong xac dinh";
-    }
+namespace TrangThaiTaiKhoan {
+    const string ACTIVE = "Hoat dong";
+    const string LOCKED = "Bi khoa";
+    const string CLOSED = "Da dong";
 }
 
-enum class LoaiGiaoDich {
-    NAP_TIEN,
-    RUT_TIEN
-};
-
-inline string loaiGDToString(LoaiGiaoDich loai) {
-    switch (loai) {
-        case LoaiGiaoDich::NAP_TIEN: return "Nap tien";
-        case LoaiGiaoDich::RUT_TIEN: return "Rut tien";
-        default: return "Khac";
-    }
+namespace LoaiGiaoDich {
+    const string NAP_TIEN = "Nap tien";
+    const string RUT_TIEN = "Rut tien";
 }
 
 // ============================================================================
@@ -297,7 +280,7 @@ inline string loaiGDToString(LoaiGiaoDich loai) {
 class GiaoDich {
 private:
     string maGiaoDich;
-    LoaiGiaoDich loai;
+    string loai;
     double soTien;
     double phiGiaoDich;
     string thoiGian;
@@ -308,7 +291,7 @@ private:
 
 public:
     GiaoDich(string maGD = "",
-             LoaiGiaoDich l = LoaiGiaoDich::NAP_TIEN,
+             string l = LoaiGiaoDich::NAP_TIEN,
              double tien = 0.0,
              double phi = 0.0,
              string tg = "",
@@ -328,7 +311,7 @@ public:
 
     // Getter
     string getMaGiaoDich() const { return maGiaoDich; }
-    LoaiGiaoDich getLoai() const { return loai; }
+    string getLoai() const { return loai; }
     double getSoTien() const { return soTien; }
     double getPhiGiaoDich() const { return phiGiaoDich; }
     string getThoiGian() const { return thoiGian; }
@@ -339,7 +322,7 @@ public:
 
     // Setter
     void setMaGiaoDich(string maGD) { maGiaoDich=maGD; }
-    void setLoai(LoaiGiaoDich l) { loai=l; }
+    void setLoai(string l) { loai=l; }
     void setSoTien(double tien) { soTien=tien; }
     void setPhiGiaoDich(double phi) { phiGiaoDich=phi; }
     void setThoiGian(string tg) { thoiGian=tg; }
@@ -352,7 +335,7 @@ public:
         out << "------------------------------------------------------------\n"
             << "Ma GD:         " << gd.maGiaoDich << "\n"
             << "Thoi gian:     " << gd.thoiGian << "\n"
-            << "Loai GD:       " << loaiGDToString(gd.loai) << "\n"
+            << "Loai GD:       " << gd.loai << "\n"
             << "So tien:       " << formatMoney(gd.soTien) << "\n"
             << "Phi giao dich: " << formatMoney(gd.phiGiaoDich) << "\n"
             << "So du truoc:   " << formatMoney(gd.soDuTruoc) << "\n"
@@ -429,7 +412,7 @@ private:
     string tenChuTaiKhoan;
     double soDu;
     string matKhau;
-    TrangThaiTaiKhoan trangThai;
+    string trangThai;
     int soLanDangNhapSai;
     double nguongCanhBaoSoDu;
     double tongRutTrongNgay;
@@ -453,8 +436,8 @@ public:
     // Getters
     string getSoTaiKhoan() const { return soTaiKhoan; }
     string getTenChuTaiKhoan() const { return tenChuTaiKhoan; }
-    TrangThaiTaiKhoan getTrangThai() const { return trangThai; }
-    string getTrangThaiString() const { return trangThaiToString(trangThai); }
+    string getTrangThai() const { return trangThai; }
+    string getTrangThaiString() const { return trangThai; }
     double getNguongCanhBao() const { return nguongCanhBaoSoDu; }
     const vector<GiaoDich>& getLichSuGiaoDich() const { return lichSuGiaoDich; }
     string getMatKhau() const { return matKhau; }
@@ -481,7 +464,7 @@ public:
         nguongCanhBaoSoDu = nguong;
     }
 
-    void setTrangThai(TrangThaiTaiKhoan tt) {
+    void setTrangThai(string tt) {
         trangThai = tt;
     }
 
@@ -566,7 +549,7 @@ public:
         out << "  Ngan hang:          LAUDAITINHAI BANK\n";
         out << "  So tai khoan:       " << soTaiKhoan << '\n';
         out << "  Chu tai khoan:      " << tenChuTaiKhoan << '\n';
-        out << "  Trang thai:         " << trangThaiToString(trangThai) << '\n';
+        out << "  Trang thai:         " << trangThai << '\n';
         out << "  So du thuc te:      " << formatMoney(soDu) << '\n';
         out << "  So du kha dung:     " << formatMoney(getSoDuKhaDung()) << '\n';
         out << "  Nguong canh bao:    " << formatMoney(nguongCanhBaoSoDu) << '\n';
@@ -1102,8 +1085,8 @@ public:
         ofstream out(tenFile);
         if (!out.is_open()) return false;
 
-        // ACCOUNT|loai|soTK|ten|soDu|thuocTinh|matKhau|trangThai|soLanSai|nguong|rutNgay|ngay
-        // TX|soTK|maGD|loaiGD|soTien|phi|thoiGian|soDuTruoc|soDuSau|trangThai|noiDung
+        // ACCOUNT|loai|soTK|ten|soDu|thuocTinh|matKhau|trangThai(string)|soLanSai|nguong|rutNgay|ngay
+        // TX|soTK|maGD|loaiGD(string)|soTien|phi|thoiGian|soDuTruoc|soDuSau|trangThai|noiDung
         out << "# DU LIEU NGAN HANG\n";
         for (const auto& tk : danhSachTaiKhoan) {
             double thuocTinh = 0.0;
@@ -1119,7 +1102,7 @@ public:
                 << fixed << setprecision(2) << tk->getSoDu() << '|'
                 << thuocTinh << '|'
                 << tk->getMatKhau() << '|'
-                << static_cast<int>(tk->getTrangThai()) << '|'
+                << tk->getTrangThai() << '|'
                 << tk->getSoLanDangNhapSai() << '|'
                 << tk->getNguongCanhBao() << '|'
                 << tk->getTongRutTrongNgay() << '|'
@@ -1128,7 +1111,7 @@ public:
             for (const auto& gd : tk->getLichSuGiaoDich()) {
                 out << "TX|" << tk->getSoTaiKhoan() << '|'
                     << gd.getMaGiaoDich() << '|'
-                    << static_cast<int>(gd.getLoai()) << '|'
+                    << gd.getLoai() << '|'
                     << fixed << setprecision(2) << gd.getSoTien() << '|'
                     << gd.getPhiGiaoDich() << '|'
                     << gd.getThoiGian() << '|'
@@ -1167,7 +1150,7 @@ public:
                     double soDu = stod(parts[3]);
                     double thuocTinh = stod(parts[4]);
                     string mk;
-                    TrangThaiTaiKhoan tt = TrangThaiTaiKhoan::ACTIVE;
+                    string tt = TrangThaiTaiKhoan::ACTIVE;
                     int saiMK = 0;
                     double nguong = BankConstants::NGUONG_CANH_BAO_MAC_DINH;
                     double rutNgay = 0.0;
@@ -1175,7 +1158,10 @@ public:
 
                     if (parts.size() >= 14) {
                         mk = parts[5];
-                        tt = static_cast<TrangThaiTaiKhoan>(stoi(parts[8]));
+                        tt = parts[8];
+                        if (tt == "0") tt = TrangThaiTaiKhoan::ACTIVE;
+                        else if (tt == "1") tt = TrangThaiTaiKhoan::LOCKED;
+                        else if (tt == "2") tt = TrangThaiTaiKhoan::CLOSED;
                         saiMK = stoi(parts[9]);
                         nguong = stod(parts[11]);
                         rutNgay = stod(parts[12]);
@@ -1183,7 +1169,10 @@ public:
                     } else {
                         // Định dạng mới chỉ lưu các trường đang sử dụng.
                         mk = parts[5];
-                        tt = static_cast<TrangThaiTaiKhoan>(stoi(parts[6]));
+                        tt = parts[6];
+                        if (tt == "0") tt = TrangThaiTaiKhoan::ACTIVE;
+                        else if (tt == "1") tt = TrangThaiTaiKhoan::LOCKED;
+                        else if (tt == "2") tt = TrangThaiTaiKhoan::CLOSED;
                         saiMK = stoi(parts[7]);
                         nguong = stod(parts[8]);
                         rutNgay = stod(parts[9]);
@@ -1221,8 +1210,11 @@ public:
                         // Ho tro ca dinh dang cu (co nguon/dich) va dinh dang moi.
                         bool dinhDangCu = parts.size() >= 12;
                         size_t offset = dinhDangCu ? 2 : 0;
+                        string loaiGD = parts.at(2);
+                        if (loaiGD == "0") loaiGD = LoaiGiaoDich::NAP_TIEN;
+                        else if (loaiGD == "1") loaiGD = LoaiGiaoDich::RUT_TIEN;
                         GiaoDich gd(parts.at(1),
-                                    static_cast<LoaiGiaoDich>(stoi(parts.at(2))),
+                                    loaiGD,
                                     stod(parts.at(3 + offset)),
                                     stod(parts.at(4 + offset)),
                                     parts.at(5 + offset),
