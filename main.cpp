@@ -326,13 +326,11 @@ public:
     string getSoTaiKhoan() const { return soTaiKhoan; }
     string getTenChuTaiKhoan() const { return tenChuTaiKhoan; }
     string getTrangThai() const { return trangThai; }
-    string getTrangThaiString() const { return trangThai; }
     double getNguongCanhBao() const { return nguongCanhBaoSoDu; }
     string getMatKhau() const { return matKhau; }
     int getSoLanDangNhapSai() const { return soLanDangNhapSai; }
     double getTongRutTrongNgay() const { return tongRutTrongNgay; }
     string getNgayGiaoDichHienTai() const { return ngayGiaoDichHienTai; }
-    double getSoDuCongKhai() const { return soDu;}
     double getSoDu() const { return soDu; }
 
     // Setters
@@ -360,13 +358,13 @@ public:
         matKhau = mk;
         soLanDangNhapSai = 0;
     }
-    void setsolandangnhapsai(int sldns){
+    void setSoLanDangNhapSai(int sldns){
         soLanDangNhapSai=sldns;
     }
-    void settongruttrongngay(double rtn){
+    void setTongRutTrongNgay(double rtn){
         tongRutTrongNgay=rtn;
     }
-    void setngaygiaodichhientai(string ngay){
+    void setNgayGiaoDichHienTai(string ngay){
         ngayGiaoDichHienTai=ngay;
     }
     void setSoDu(double soDuMoi) {
@@ -636,8 +634,6 @@ public:
         lyDo = "Nap tien thanh cong!";
         return true;
     }
-
-    friend class NganHang;
 
     friend istream& operator>>(istream& in, TaiKhoan& tk) {
         tk.NhapThongTin(in);
@@ -919,8 +915,8 @@ public:
                  << setw(16) << tk->getSoTaiKhoan()
                  << setw(26) << tk->getTenChuTaiKhoan()
                  << setw(16) << tk->getLoaiTaiKhoan()
-                 << setw(14) << tk->getTrangThaiString()
-                 << right << setw(19) << formatMoney(tk->getSoDuCongKhai()) << "\n";
+                 << setw(14) << tk->getTrangThai()
+                 << right << setw(19) << formatMoney(tk->getSoDu()) << "\n";
         }
         cout << UI::blue() << string(96, '=') << UI::reset() << "\n";
     }
@@ -1050,10 +1046,10 @@ public:
 
                     tk->setMatKhau(mk);
                     tk->setTrangThai(tt);
-                    tk->setsolandangnhapsai(saiMK);
+                    tk->setSoLanDangNhapSai(saiMK);
                     tk->setNguongCanhBao(nguong);
-                    tk->settongruttrongngay(rutNgay);
-                    tk->setngaygiaodichhientai(ngayGD);
+                    tk->setTongRutTrongNgay(rutNgay);
+                    tk->setNgayGiaoDichHienTai(ngayGD);
                     danhSachTaiKhoan.push_back(move(tk));
                 } catch (const exception&) {
                     // Bỏ qua bản ghi tài khoản sai định dạng, không làm dừng toàn bộ chương trình.
@@ -1162,7 +1158,7 @@ void menuKhachHang(TaiKhoan* tk) {
             case 2: {
                 clearScreen();
                 printBanner("NAP TIEN VAO TAI KHOAN");
-                cout << "  So du hien tai: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n\n";
+                cout << "  So du hien tai: " << UI::green() << formatMoney(tk->getSoDu()) << UI::reset() << "\n\n";
                 double soTien = nhapSoTien("Nhap so tien can nap (VND) [Nhap 0 de huy]: ", true);
                 if (soTien == 0.0) {
                     showWarning("Da huy thao tac nap tien.");
@@ -1172,7 +1168,7 @@ void menuKhachHang(TaiKhoan* tk) {
                 string lyDo;
                 if (tk->ThucHienNapTien(soTien, lyDo)) {
                     showSuccess(lyDo);
-                    cout << "So du moi: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
+                    cout << "So du moi: " << UI::green() << formatMoney(tk->getSoDu()) << UI::reset() << "\n";
                 } else {
                     showError(lyDo);
                 }
@@ -1184,7 +1180,7 @@ void menuKhachHang(TaiKhoan* tk) {
                 clearScreen();
                 printBanner("RUT TIEN MAT", "Tap trung chuc nang rut tien");
                 cout << "  Loai tai khoan: " << UI::yellow() << tk->getLoaiTaiKhoan() << UI::reset() << "\n";
-                cout << "  So du thuc te:  " << UI::cyan() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
+                cout << "  So du thuc te:  " << UI::cyan() << formatMoney(tk->getSoDu()) << UI::reset() << "\n";
                 cout << "  So du kha dung: " << UI::green() << formatMoney(tk->getSoDuKhaDung()) << UI::reset() << "\n";
                 cout << "  Han muc rut:    Toi thieu " << formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_THIEU)
                      << " | Toi da " << formatMoney(BankConstants::HAN_MUC_RUT_MOI_LAN_TOI_DA) << "/lan\n";
@@ -1201,7 +1197,7 @@ void menuKhachHang(TaiKhoan* tk) {
                 string lyDo;
                 if (tk->ThucHienRutTien(soTien, lyDo)) {
                     showSuccess(lyDo);
-                    cout << "So du con lai: " << UI::green() << formatMoney(tk->getSoDuCongKhai()) << UI::reset() << "\n";
+                    cout << "So du con lai: " << UI::green() << formatMoney(tk->getSoDu()) << UI::reset() << "\n";
                 } else {
                     showError(lyDo);
                 }
@@ -1311,7 +1307,7 @@ void menuQuanTri(NganHang& bank) {
                     break;
                 }
 
-                cout << "  Trang thai hien tai: " << UI::yellow() << tk->getTrangThaiString() << UI::reset() << "\n\n";
+                cout << "  Trang thai hien tai: " << UI::yellow() << tk->getTrangThai() << UI::reset() << "\n\n";
                 cout << "  " << UI::cyan() << "[1]" << UI::reset() << " Mo khoa tai khoan (ACTIVE) & reset so lan sai MK\n";
                 cout << "  " << UI::cyan() << "[2]" << UI::reset() << " Khoa tai khoan (LOCKED)\n";
                 cout << "  " << UI::cyan() << "[3]" << UI::reset() << " Dong tai khoan (CLOSED)\n";
