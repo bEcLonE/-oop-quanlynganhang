@@ -662,6 +662,9 @@ public:
             throw invalid_argument("Tai khoan tiet kiem khong duoc co so du am!");
     }
 
+    // Destructor
+    ~TaiKhoanTietKiem() override = default;
+
     double getLaiSuat() const { return laiSuat; }
 
     void setLaiSuat(double ls) {
@@ -741,6 +744,9 @@ public:
         if (sd < -hmt)
             throw invalid_argument("So du khong duoc vuot qua han muc tin dung!");
     }
+
+    // Destructor
+    ~TaiKhoanThanhToan() override = default;
 
     double getHanMucTinDung() const { return hanMucTinDung; }
 
